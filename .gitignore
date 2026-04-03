@@ -1,0 +1,23 @@
+# Environnement virtuel
+env/
+
+# Fichiers secrets
+.env
+
+# Fichiers Python compilés
+__pycache__/
+*.pyc
+*.pyo
+
+# Fichiers de base de données
+*.sqlite3
+
+# Fichiers médias uploadés
+media/
+
+# VS Code
+.vscode/
+
+# Fichiers système Windows
+Thumbs.db
+desktop.ini
