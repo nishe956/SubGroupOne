@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import 'settings_screen.dart';
+import 'help_support_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -37,10 +38,15 @@ class ProfileScreen extends StatelessWidget {
             Text('Jean Dupont', style: Theme.of(context).textTheme.headlineMedium),
             const Text('jean.dupont@email.com', style: TextStyle(color: AppColors.brunClair)),
             const SizedBox(height: 40),
-            _buildProfileItem(Icons.history, 'Mes Commandes'),
-            _buildProfileItem(Icons.favorite_border, 'Favoris'),
-            _buildProfileItem(Icons.description_outlined, 'Mes Ordonnances'),
-            _buildProfileItem(Icons.help_outline, 'Aide & Support'),
+            _buildProfileItem(context, Icons.history, 'Mes Commandes'),
+            _buildProfileItem(context, Icons.favorite_border, 'Favoris'),
+            _buildProfileItem(context, Icons.description_outlined, 'Mes Ordonnances'),
+            _buildProfileItem(
+              context,
+              Icons.help_outline,
+              'Aide & Support',
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen())),
+            ),
             const SizedBox(height: 40),
             TextButton(
               onPressed: () {
@@ -54,22 +60,25 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileItem(IconData icon, String title) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.brunMoyen),
-          const SizedBox(width: 16),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.brunFonce)),
-          const Spacer(),
-          const Icon(Icons.chevron_right, color: AppColors.brunClair),
-        ],
+  Widget _buildProfileItem(BuildContext context, IconData icon, String title, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.brunMoyen),
+            const SizedBox(width: 16),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.brunFonce)),
+            const Spacer(),
+            const Icon(Icons.chevron_right, color: AppColors.brunClair),
+          ],
+        ),
       ),
     );
   }
