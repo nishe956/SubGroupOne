@@ -54,7 +54,7 @@ class CameraScreen extends ConsumerWidget {
                 )
               else
                 _LuxuryCameraPlaceholder(message: placeholderLabel),
-              if (overlay != null) overlay,
+              if (overlay case final Widget widget) widget,
             ],
           ),
         );
