@@ -1,8 +1,12 @@
-import 'dart:async';
-
+import 'package:dio/dio.dart' as dio;
+import 'package:camera/camera.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
 import '../theme/app_theme.dart';
 import 'ocr_providers.dart';
 import 'ocr_result_screen.dart';
@@ -17,8 +21,10 @@ class OcrScanScreen extends ConsumerStatefulWidget {
 
 class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
     with TickerProviderStateMixin {
+  CameraController? _cameraController;
   late final AnimationController _pulse;
   late final AnimationController _sweep;
+  bool _showFlash = false;
 
   @override
   void initState() {
@@ -31,36 +37,89 @@ class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
       vsync: this,
       duration: const Duration(milliseconds: 2800),
     )..repeat();
+    
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    final status = await Permission.camera.request();
+    if (!mounted || status.isDenied) return;
+
+    final cameras = await availableCameras();
+    if (cameras.isEmpty) return;
+
+    final selectedCamera = cameras.firstWhere(
+      (c) => c.lensDirection == CameraLensDirection.back,
+      orElse: () => cameras.first,
+    );
+
+    final controller = CameraController(
+      selectedCamera,
+      ResolutionPreset.high,
+      enableAudio: false,
+    );
+
+    await controller.initialize();
+    if (mounted) {
+      setState(() {
+        _cameraController = controller;
+      });
+    }
   }
 
   @override
   void dispose() {
+    _cameraController?.dispose();
     _pulse.dispose();
     _sweep.dispose();
     super.dispose();
   }
 
-  Future<void> _simulateScan() async {
+  Future<void> _captureAndScan() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+
     ref.read(ocrScanBusyProvider.notifier).state = true;
-    await Future<void>.delayed(const Duration(milliseconds: 1600));
-    if (!mounted) return;
-    ref.read(ocrExtractedTextProvider.notifier).state =
-        'Monture : Atelier Nude — Optique\n'
-        'PD : 62 mm\n'
-        'Réf. fabricant : ATN-901\n'
-        'Verre conseillé : Blue UV 1.6\n\n'
-        '(Exemple statique — branchez votre OCR ici.)';
-    ref.read(ocrScanBusyProvider.notifier).state = false;
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      PageRouteBuilder<void>(
-        pageBuilder: (context, animation, secondaryAnimation) => const OcrResultScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) => FadeTransition(
-          opacity: animation,
-          child: child,
-        ),
-      ),
-    );
+    
+    try {
+      setState(() => _showFlash = true);
+      final image = await _cameraController!.takePicture();
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) setState(() => _showFlash = false);
+      });
+      HapticFeedback.mediumImpact();
+
+      final formData = dio.FormData.fromMap({
+        'image': await dio.MultipartFile.fromFile(image.path),
+      });
+
+      final response = await apiClient.post(
+        ApiEndpoints.scanPrescription,
+        data: formData,
+      );
+
+      if (response.statusCode == 201 && mounted) {
+        final text = response.data['texte_extrait'] ?? 'Aucun texte détecté.';
+        ref.read(ocrExtractedTextProvider.notifier).state = text;
+        
+        Navigator.of(context).push(
+          PageRouteBuilder<void>(
+            pageBuilder: (context, animation, secondaryAnimation) => const OcrResultScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) => FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erreur lors du scan de l\'ordonnance.')),
+        );
+      }
+    } finally {
+      ref.read(ocrScanBusyProvider.notifier).state = false;
+    }
   }
 
   @override
@@ -77,10 +136,22 @@ class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
       ),
       body: Stack(
         children: [
+          if (_cameraController != null && _cameraController!.value.isInitialized)
+            SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                clipBehavior: Clip.hardEdge,
+                child: SizedBox(
+                   width: _cameraController!.value.previewSize?.height ?? MediaQuery.of(context).size.width,
+                   height: _cameraController!.value.previewSize?.width ?? MediaQuery.of(context).size.height,
+                   child: CameraPreview(_cameraController!),
+                ),
+              ),
+            ),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [AppColors.brownDark, Color(0xFF2A2118)],
+                colors: [Color(0x993D2E20), Color(0x992A2118)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
@@ -120,7 +191,7 @@ class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              onPressed: busy ? null : _simulateScan,
+              onPressed: busy ? null : _captureAndScan,
               icon: busy
                   ? const SizedBox(
                       width: 22,
@@ -130,10 +201,16 @@ class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
                         color: AppColors.brownDark,
                       ),
                     )
-                  : const Icon(Icons.document_scanner_outlined),
-              label: Text(busy ? 'Analyse…' : 'Numériser le document'),
+                  : const Icon(Icons.photo_camera_rounded),
+              label: Text(busy ? 'Analyse…' : 'Prendre une photo'),
             ),
           ),
+          if (_showFlash)
+            Positioned.fill(
+              child: Container(
+                color: Colors.white,
+              ),
+            ),
         ],
       ),
     );

@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/api/api_endpoints.dart';
 import '../../features/products/products_list_screen.dart';
+import '../../features/products/products_providers.dart';
+import '../../features/products/product_detail_screen.dart';
 import '../../features/ocr/ocr_scan_screen.dart';
 import '../../features/ar_try_on/ar_try_on_screen.dart';
 import '../../features/products/product.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final productsAsync = ref.watch(productsCatalogProvider);
+
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -19,7 +25,7 @@ class HomeScreen extends StatelessWidget {
             pinned: true,
             backgroundColor: AppColors.brownDark,
             flexibleSpace: FlexibleSpaceBar(
-              title: const Text('Esther Eyewear',
+              title: const Text('Smart Vision',
                   style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -56,8 +62,10 @@ class HomeScreen extends StatelessWidget {
                           Icons.face_retouching_natural,
                           AppColors.brownMedium,
                           () {
-                            // Use a properly instantiated mock product for the AR demo
-                            const demoProduct = Product(
+                            // Use the first product from the list for the AR demo if available
+                            final firstProduct = productsAsync.value?.firstOrNull;
+                            
+                            final demoProduct = firstProduct ?? const Product(
                               id: 'demo-1',
                               name: 'Modèle Signature',
                               category: 'Luxe',
@@ -100,18 +108,32 @@ class HomeScreen extends StatelessWidget {
                             builder: (_) => const ProductsListScreen()));
                   }),
                   const SizedBox(height: 16),
-                  SizedBox(
-                    height: 110,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _buildCategoryCard(context, 'Solaire', Icons.wb_sunny_outlined),
-                        _buildCategoryCard(context, 'Optique', Icons.visibility_outlined),
-                        _buildCategoryCard(context, 'Sport', Icons.sports_tennis_outlined),
-                        _buildCategoryCard(context, 'Premium', Icons.star_border_outlined),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: 16),
+                  ref.watch(availableCategoriesProvider).isEmpty
+                      ? const Center(child: Text('Aucune collection disponible'))
+                      : SizedBox(
+                          height: 110,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: ref.watch(availableCategoriesProvider).length,
+                            itemBuilder: (context, index) {
+                              final category = ref.watch(availableCategoriesProvider)[index];
+                              IconData iconData = Icons.visibility_outlined;
+                              if (category.toLowerCase().contains('soleil')) {
+                                iconData = Icons.wb_sunny_outlined;
+                              } else if (category.toLowerCase().contains('vue')) {
+                                iconData = Icons.visibility_outlined;
+                              } else if (category.toLowerCase().contains('sport')) {
+                                iconData = Icons.sports_tennis_outlined;
+                              } else if (category.toLowerCase().contains('premium')) {
+                                iconData = Icons.star_border_outlined;
+                              } else {
+                                iconData = Icons.panorama_fish_eye;
+                              }
+                              return _buildCategoryCard(context, ref, category, iconData);
+                            },
+                          ),
+                        ),
                   const SizedBox(height: 40),
                   _buildSectionTitle(context, 'Nouveautés'),
                   const SizedBox(height: 16),
@@ -119,22 +141,47 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.8,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  return _buildProductCard(
-                      context, 'Modèle Elite ${index + 1}', '159.00 €');
-                },
-                childCount: 4,
-              ),
+          productsAsync.when(
+            data: (products) {
+              // On prend les 4 lunettes les plus récentes (tri par ID décroissant)
+              final latestProducts = [...products]..sort((a, b) => b.id.compareTo(a.id));
+              final displayProducts = latestProducts.take(4).toList();
+
+              if (displayProducts.isEmpty) {
+                return const SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Text('Aucun produit disponible pour le moment.'),
+                    ),
+                  ),
+                );
+              }
+
+              return SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.78,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final product = displayProducts[index];
+                      return _PremiumProductCard(product: product);
+                    },
+                    childCount: displayProducts.length,
+                  ),
+                ),
+              );
+            },
+            loading: () => const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, stack) => SliverToBoxAdapter(
+              child: Center(child: Text('Erreur: $e')),
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
@@ -199,9 +246,11 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryCard(BuildContext context, String title, IconData icon) {
+  Widget _buildCategoryCard(BuildContext context, WidgetRef ref, String title, IconData icon) {
     return GestureDetector(
       onTap: () {
+        // On applique le filtre de catégorie avant de naviguer
+        ref.read(selectedCategoryProvider.notifier).state = title;
         Navigator.push(context,
             MaterialPageRoute(builder: (_) => const ProductsListScreen()));
       },
@@ -215,66 +264,153 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: AppColors.brownDark),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: AppColors.brownMedium, size: 24),
+            ),
             const SizedBox(height: 8),
-            Text(title,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                    color: AppColors.brownDark)),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: AppColors.brownDark,
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProductCard(BuildContext context, String name, String price) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+}
+
+class _PremiumProductCard extends StatelessWidget {
+  final Product product;
+  const _PremiumProductCard({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          PageRouteBuilder<void>(
+            pageBuilder: (context, animation, secondaryAnimation) => ProductDetailScreen(product: product),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+                FadeTransition(opacity: animation, child: child),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Container(
-              decoration: const BoxDecoration(
-                color: AppColors.cream,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: const Center(
-                  child: Icon(Icons.panorama_fish_eye,
-                      size: 40, color: AppColors.brownLight)),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                   Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: AppColors.cream,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Hero(
+                      tag: product.heroTag,
+                      child: product.imageAsset.startsWith('/media') || product.imageAsset.startsWith('http')
+                        ? ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                            child: Image.network(
+                              product.imageAsset.startsWith('/media')
+                                ? '${ApiEndpoints.baseUrl.replaceAll(RegExp(r'/api/?$'), '')}${product.imageAsset}'
+                                : product.imageAsset,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              errorBuilder: (context, error, stackTrace) => const Center(
+                                child: Icon(Icons.broken_image_outlined, size: 32, color: AppColors.brownLight),
+                              ),
+                            ),
+                          )
+                        : const Center(
+                            child: Icon(Icons.panorama_fish_eye, size: 40, color: AppColors.brownLight),
+                          ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.favorite_border, size: 16, color: AppColors.brownMedium),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.brownDark)),
-                const SizedBox(height: 4),
-                Text(price,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      letterSpacing: -0.2,
+                      color: AppColors.brownDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    product.category,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.brownMedium.withValues(alpha: 0.7),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${product.priceEur.toStringAsFixed(0)} €',
                     style: const TextStyle(
-                        color: AppColors.brownMedium,
-                        fontWeight: FontWeight.bold)),
-              ],
+                      color: AppColors.brownMedium,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../ar_try_on/ar_try_on_screen.dart';
-import '../payment/payment_method_screen.dart';
 import '../theme/app_theme.dart';
+import '../../core/api/api_endpoints.dart';
+import '../cart/cart_providers.dart';
+import '../../screens/shop/checkout_screen.dart';
 import 'product.dart';
 import 'products_providers.dart';
 
@@ -61,22 +63,25 @@ class ProductDetailScreen extends ConsumerWidget {
                 children: [
                   Hero(
                     tag: p.heroTag,
-                    child: Image.asset(
-                      p.imageAsset,
-                      fit: BoxFit.cover,
-                      alignment: Alignment.center,
-                      width: double.infinity,
-                      height: double.infinity,
-                      errorBuilder: (_, __, ___) => ColoredBox(
-                        color: AppColors.nude,
-                        child: Icon(
-                          Icons.hide_image_outlined,
-                          size: 72,
-                          color:
-                              AppColors.brownMedium.withValues(alpha: 0.4),
+                    child: p.imageAsset.startsWith('/media') || p.imageAsset.startsWith('http')
+                      ? Image.network(
+                          p.imageAsset.startsWith('/media')
+                            ? '${ApiEndpoints.baseUrl.replaceAll(RegExp(r'/api/?$'), '')}${p.imageAsset}'
+                            : p.imageAsset,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            color: AppColors.nude,
+                            child: Icon(Icons.visibility_outlined, size: 72, color: AppColors.brownMedium.withValues(alpha: 0.4)),
+                          ),
+                        )
+                      : Container(
+                          color: AppColors.nude,
+                          child: Center(
+                            child: Icon(Icons.visibility_outlined, size: 72, color: AppColors.brownMedium.withValues(alpha: 0.4)),
+                          ),
                         ),
-                      ),
-                    ),
                   ),
                   Positioned(
                     left: 0,
@@ -106,142 +111,92 @@ class ProductDetailScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Catégorie',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                    letterSpacing: 1.5,
-                                    color: AppColors.brownMedium,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.nude,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: AppColors.brownLight
-                                      .withValues(alpha: 0.55),
-                                ),
-                              ),
-                              child: Text(
-                                p.category,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.brownDark,
-                                      height: 1.3,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Genre',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                    letterSpacing: 1.5,
-                                    color: AppColors.brownMedium,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.cream,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: AppColors.brownLight
-                                      .withValues(alpha: 0.65),
-                                ),
-                              ),
-                              child: Text(
-                                p.gender,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.brownDark,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+                  // Nom + Marque
                   Text(
                     p.name,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.brownDark,
                           height: 1.15,
                         ),
                   ),
                   if (p.reference != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
-                      'Réf. ${p.reference}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      p.reference!,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: AppColors.brownMedium,
+                            fontWeight: FontWeight.w500,
                           ),
                     ),
                   ],
-                  const SizedBox(height: 20),
-                  Text(
-                    _formatPrice(p.priceEur),
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.brownDark,
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _formatPrice(p.priceEur),
+                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.brownDark,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                         ),
-                  ),
-                  const SizedBox(height: 28),
-                  Text(
-                    'Description',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: p.stock > 0
+                              ? const Color(0xFFE8F5E9)
+                              : const Color(0xFFFFEBEE),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    p.description,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppColors.brownDark.withValues(alpha: 0.88),
-                          height: 1.5,
+                        child: Text(
+                          p.stock > 0 ? '${p.stock} en stock' : 'Rupture',
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: p.stock > 0
+                                ? const Color(0xFF2E7D32)
+                                : const Color(0xFFC62828),
+                          ),
                         ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 24),
+                  // Chips : Forme, Genre, Couleur
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _InfoChip(label: '🔲 Forme', value: p.category),
+                      _InfoChip(label: '👤 Genre', value: p.gender),
+                      if (p.couleur != null)
+                        _InfoChip(label: '🎨 Couleur', value: p.couleur!),
+                    ],
+                  ),
+                  if (p.description.isNotEmpty) ...[
+                    const SizedBox(height: 28),
+                    Text(
+                      'Description',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.brownDark,
+                          ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      p.description,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: AppColors.brownDark.withValues(alpha: 0.88),
+                            height: 1.6,
+                          ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -256,9 +211,9 @@ class ProductDetailScreen extends ConsumerWidget {
                     onPressed: () {
                       Navigator.of(context).push(
                         PageRouteBuilder<void>(
-                          pageBuilder: (_, __, ___) =>
+                          pageBuilder: (context, animation, secondaryAnimation) =>
                               ArTryOnScreen(product: p),
-                          transitionsBuilder: (_, animation, __, child) =>
+                          transitionsBuilder: (_, animation, _, child) =>
                               FadeTransition(
                                 opacity: animation,
                                 child: child,
@@ -271,19 +226,98 @@ class ProductDetailScreen extends ConsumerWidget {
                     icon: const Icon(Icons.view_in_ar_rounded),
                     label: const Text('ESSAYER EN AR'),
                   ),
-                  const SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => PaymentMethodScreen(product: p),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            ref.read(cartProvider.notifier).addItem(p);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('${p.name} ajouté au panier'),
+                                behavior: SnackBarBehavior.floating,
+                                action: SnackBarAction(
+                                  label: 'VOIR',
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
+                          label: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('PANIER'),
+                          ),
                         ),
-                      );
-                    },
-                    child: const Text('Acheter — paiement'),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => CheckoutScreen(singleProduct: p),
+                              ),
+                            );
+                          },
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('ACHETER MAINTENANT'),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Chip d'information pour la page de détails
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.nude,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.brownLight.withValues(alpha: 0.55),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+              color: AppColors.brownMedium,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.brownDark,
             ),
           ),
         ],

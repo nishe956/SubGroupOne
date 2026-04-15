@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../ocr/ocr_scan_screen.dart';
 import '../theme/app_theme.dart';
+import '../../core/widgets/product_image_loader.dart';
 import 'product.dart';
 import 'product_detail_screen.dart';
 import 'products_providers.dart';
@@ -98,7 +99,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Montures sélection',
+                      selectedCat ?? 'Montures sélection',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             color: AppColors.brownDark,
                             fontWeight: FontWeight.w500,
@@ -193,25 +194,27 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 96,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: kMainGlassCategories.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (context, i) {
-                        final label = kMainGlassCategories[i];
-                        final selected = selectedCat == label;
-                        return _CategoryLuxeCard(
-                          label: label,
-                          selected: selected,
-                          onTap: () {
-                            ref.read(selectedCategoryProvider.notifier).state =
-                                selected ? null : label;
-                          },
-                        );
-                      },
-                    ),
+                    child: ref.watch(availableCategoriesProvider).isEmpty
+                        ? const Center(child: Text('Chargement des catégories...'))
+                        : ListView.separated(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: ref.watch(availableCategoriesProvider).length,
+                            separatorBuilder: (_, _) => const SizedBox(width: 12),
+                            itemBuilder: (context, i) {
+                              final label = ref.watch(availableCategoriesProvider)[i];
+                              final selected = selectedCat == label;
+                              return _CategoryLuxeCard(
+                                label: label,
+                                selected: selected,
+                                onTap: () {
+                                  ref.read(selectedCategoryProvider.notifier).state =
+                                      selected ? null : label;
+                                },
+                              );
+                            },
+                          ),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -522,13 +525,13 @@ class _ProductCard extends StatelessWidget {
                       tag: product.heroTag,
                       child: Material(
                         color: AppColors.cream,
-                        child: Image.asset(
-                          product.imageAsset,
+                        child: ProductImageLoader(
+                          imagePath: product.imageAsset,
                           fit: BoxFit.cover,
                           alignment: Alignment.center,
                           width: double.infinity,
                           height: double.infinity,
-                          errorBuilder: (_, __, ___) => ColoredBox(
+                          errorBuilder: (_, _, _) => ColoredBox(
                             color: AppColors.nude,
                             child: Icon(
                               Icons.hide_image_outlined,

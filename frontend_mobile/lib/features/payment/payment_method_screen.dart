@@ -118,11 +118,11 @@ class PaymentMethodScreen extends ConsumerWidget {
             onPressed: () {
               Navigator.of(context).push(
                 PageRouteBuilder<void>(
-                  pageBuilder: (_, __, ___) => PaymentConfirmationScreen(
+                  pageBuilder: (_, _, _) => PaymentConfirmationScreen(
                     product: product,
                     method: selected,
                   ),
-                  transitionsBuilder: (_, animation, __, child) =>
+                  transitionsBuilder: (_, animation, _, child) =>
                       FadeTransition(opacity: animation, child: child),
                   transitionDuration: const Duration(milliseconds: 340),
                 ),

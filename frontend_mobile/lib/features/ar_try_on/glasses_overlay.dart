@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../products/product.dart';
 import '../theme/app_theme.dart';
+import '../../core/widgets/product_image_loader.dart';
 import 'ar_providers.dart';
 
 /// Overlay « lunettes » élégant — rendu purement visuel en attendant l’IA.
@@ -32,10 +33,25 @@ class GlassesOverlay extends ConsumerWidget {
               offset: Offset(off.dx * 36, off.dy * 24),
               child: Transform.scale(
                 scale: scale,
-                child: _GlassesFrameSilhouette(
-                  accent: product.heroGradient.isNotEmpty
-                      ? product.heroGradient.first
-                      : AppColors.brownMedium,
+                child: ColorFiltered(
+                  colorFilter: const ColorFilter.matrix(<double>[
+                    1, 0, 0, 0, 0,
+                    0, 1, 0, 0, 0,
+                    0, 0, 1, 0, 0,
+                    -1, -1, -1, 1.5, 1, // Transforme les couleurs claires en transparence
+                  ]),
+                  child: SizedBox(
+                    width: 320,
+                    child: ProductImageLoader(
+                      imagePath: product.imageAsset,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => _GlassesFrameSilhouette(
+                        accent: product.heroGradient.isNotEmpty
+                            ? product.heroGradient.first
+                            : AppColors.brownMedium,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

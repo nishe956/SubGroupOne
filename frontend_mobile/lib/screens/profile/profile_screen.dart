@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
+import '../../features/auth/auth_provider.dart';
+import '../auth/login_screen.dart';
 import 'settings_screen.dart';
+
 import 'help_support_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userState = ref.watch(authProvider).user;
+    final userName = userState?.firstName != null && userState?.lastName != null 
+        ? '${userState!.firstName} ${userState.lastName}' 
+        : 'Utilisateur';
+    final userEmail = userState?.email ?? 'email@introuvable.com';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mon Profil', style: TextStyle(color: AppColors.brunFonce)),
@@ -35,8 +45,8 @@ class ProfileScreen extends StatelessWidget {
               child: Icon(Icons.person, size: 80, color: Colors.white),
             ),
             const SizedBox(height: 16),
-            Text('Jean Dupont', style: Theme.of(context).textTheme.headlineMedium),
-            const Text('jean.dupont@email.com', style: TextStyle(color: AppColors.brunClair)),
+            Text(userName, style: Theme.of(context).textTheme.headlineMedium),
+            Text(userEmail, style: const TextStyle(color: AppColors.brunClair)),
             const SizedBox(height: 40),
             _buildProfileItem(context, Icons.history, 'Mes Commandes'),
             _buildProfileItem(context, Icons.favorite_border, 'Favoris'),
@@ -49,11 +59,19 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 40),
             TextButton(
-              onPressed: () {
-                Navigator.popUntil(context, (route) => route.isFirst);
+              onPressed: () async {
+                await ref.read(authProvider.notifier).logout();
+                if (context.mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
               },
               child: const Text('Déconnexion', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
             ),
+
           ],
         ),
       ),
