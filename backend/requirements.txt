@@ -1,0 +1,11 @@
+django
+djangorestframework
+django-cors-headers
+psycopg2-binary
+pytesseract
+opencv-python>=4.8.0
+python-dotenv
+djangorestframework-simplejwt
+Pillow
+numpy<2.0.0
+mediapipe==0.10.11
