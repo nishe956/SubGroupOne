@@ -4,6 +4,10 @@ import '../../core/theme/app_colors.dart';
 import '../../features/auth/auth_provider.dart';
 import '../auth/login_screen.dart';
 import 'settings_screen.dart';
+import '../shop/my_orders_screen.dart';
+import 'my_prescriptions_screen.dart';
+
+import 'my_favorites_screen.dart';
 
 import 'help_support_screen.dart';
 
@@ -48,9 +52,26 @@ class ProfileScreen extends ConsumerWidget {
             Text(userName, style: Theme.of(context).textTheme.headlineMedium),
             Text(userEmail, style: const TextStyle(color: AppColors.brunClair)),
             const SizedBox(height: 40),
-            _buildProfileItem(context, Icons.history, 'Mes Commandes'),
-            _buildProfileItem(context, Icons.favorite_border, 'Favoris'),
-            _buildProfileItem(context, Icons.description_outlined, 'Mes Ordonnances'),
+            _buildProfileItem(
+              context, 
+              Icons.history, 
+              'Mes Commandes',
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyOrdersScreen())),
+            ),
+            _buildProfileItem(
+              context, 
+              Icons.favorite_border, 
+              'Favoris',
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const MyFavoritesScreen()));
+              },
+            ),
+            _buildProfileItem(
+              context, 
+              Icons.description_outlined, 
+              'Mes Ordonnances',
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyPrescriptionsScreen())),
+            ),
             _buildProfileItem(
               context,
               Icons.help_outline,

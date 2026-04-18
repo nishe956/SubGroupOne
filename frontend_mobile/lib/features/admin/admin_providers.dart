@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
-import '../products/products_providers.dart';
 
 // Modèle Utilisateur Admin
 class AdminUser {
@@ -36,21 +35,63 @@ class AdminUser {
 
 // Service Admin
 class AdminService {
-  Future<List<AdminUser>> fetchUsers() async {
-    final response = await apiClient.get(ApiEndpoints.adminUsers);
+  final ApiClient apiClient;
+
+  AdminService(this.apiClient);
+
+  Future<List<AdminUser>> fetchUsers({String? role}) async {
+    final Map<String, dynamic> query = role != null ? {'role': role} : {};
+    final response = await apiClient.get(ApiEndpoints.adminUsers, queryParameters: query);
     return (response.data as List).map((u) => AdminUser.fromJson(u)).toList();
   }
 
-  Future<void> updateUserRole(int id, String role) async {
-    await apiClient.dio.patch(ApiEndpoints.adminUserDetail(id), data: {'role': role});
+  Future<Map<String, dynamic>> fetchStats() async {
+    final response = await apiClient.get(ApiEndpoints.adminStats);
+    return Map<String, dynamic>.from(response.data);
   }
 
-  Future<void> deactivateUser(int id) async {
+  Future<List<Map<String, dynamic>>> fetchAssurances() async {
+    final response = await apiClient.get(ApiEndpoints.adminAssurances);
+    return List<Map<String, dynamic>>.from(response.data);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchLogs() async {
+    final response = await apiClient.get(ApiEndpoints.adminLogs);
+    return List<Map<String, dynamic>>.from(response.data);
+  }
+
+  // CRUD Utilisateurs
+  Future<void> createUser(Map<String, dynamic> data) async {
+    await apiClient.post(ApiEndpoints.adminUsers, data: data);
+  }
+
+  Future<void> updateUser(int id, Map<String, dynamic> data) async {
+    await apiClient.patch(ApiEndpoints.adminUserDetail(id), data: data);
+  }
+
+  Future<void> deleteUser(int id) async {
     await apiClient.delete(ApiEndpoints.adminUserDetail(id));
   }
 
+  // CRUD Assurances
+  Future<void> createAssurance(Map<String, dynamic> data) async {
+    await apiClient.post(ApiEndpoints.adminAssurances, data: data);
+  }
+
+  Future<void> deleteAssurance(int id) async {
+    await apiClient.delete('${ApiEndpoints.adminAssurances}$id/');
+  }
+
+  Future<void> updateUserRole(int id, String role) async {
+    await apiClient.patch(ApiEndpoints.adminUserDetail(id), data: {'role': role});
+  }
+
+  Future<void> deactivateUser(int id) async {
+    // PATCH is_active to false — do NOT delete the account
+    await apiClient.patch(ApiEndpoints.adminUserDetail(id), data: {'is_active': false});
+  }
+
   Future<void> addProduct(Map<String, dynamic> data) async {
-    // Utiliser FormData pour l'envoi d'images
     final formData = FormData.fromMap(data);
     await apiClient.post(ApiEndpoints.getProducts, data: formData);
   }
@@ -82,11 +123,14 @@ class AdminService {
   }
 }
 
-final adminServiceProvider = Provider((ref) => AdminService());
+final adminServiceProvider = Provider((ref) {
+  final client = ref.watch(apiClientProvider);
+  return AdminService(client);
+});
 
 // Providers State
-final adminUsersProvider = FutureProvider<List<AdminUser>>((ref) async {
-  return ref.watch(adminServiceProvider).fetchUsers();
+final adminUsersProvider = FutureProvider.family<List<AdminUser>, String?>((ref, role) async {
+  return ref.watch(adminServiceProvider).fetchUsers(role: role);
 });
 
 final adminOrdersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -97,26 +141,15 @@ final adminPrescriptionsProvider = FutureProvider.family<List<Map<String, dynami
   return ref.watch(adminServiceProvider).fetchAllPrescriptions(search: search);
 });
 
-// Provider pour les statistiques du tableau de bord
-final adminStatsProvider = FutureProvider<Map<String, int>>((ref) async {
-  try {
-    final users = await ref.watch(adminUsersProvider.future);
-    final orders = await ref.watch(adminOrdersProvider.future);
-    final prescriptions = await ref.watch(adminPrescriptionsProvider(null).future);
-    final products = await ref.watch(productsCatalogProvider.future);
+// Provider pour les statistiques réelles
+final adminStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  return ref.watch(adminServiceProvider).fetchStats();
+});
 
-    return {
-      'users': users.length,
-      'orders': orders.length,
-      'products': products.length,
-      'prescriptions': prescriptions.length,
-    };
-  } catch (e) {
-    return {
-      'users': 0,
-      'orders': 0,
-      'products': 0,
-      'prescriptions': 0,
-    };
-  }
+final adminAssurancesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return ref.watch(adminServiceProvider).fetchAssurances();
+});
+
+final adminLogsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return ref.watch(adminServiceProvider).fetchLogs();
 });

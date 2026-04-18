@@ -11,6 +11,11 @@ class User {
   final String role;
   final String? firstName;
   final String? lastName;
+  final String? telephone;
+  final String? adresse;
+  final String? assuranceNom;
+  final String? assuranceNumero;
+  final String? codeFamille;
 
   User({
     required this.id,
@@ -18,6 +23,11 @@ class User {
     required this.role,
     this.firstName,
     this.lastName,
+    this.telephone,
+    this.adresse,
+    this.assuranceNom,
+    this.assuranceNumero,
+    this.codeFamille,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -27,7 +37,27 @@ class User {
       role: json['role'] ?? 'client',
       firstName: json['first_name'],
       lastName: json['last_name'],
+      telephone: json['telephone'],
+      adresse: json['adresse'],
+      assuranceNom: json['assurance_nom'],
+      assuranceNumero: json['assurance_numero'],
+      codeFamille: json['code_famille'],
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      'role': role,
+      'first_name': firstName,
+      'last_name': lastName,
+      'telephone': telephone,
+      'adresse': adresse,
+      'assurance_nom': assuranceNom,
+      'assurance_numero': assuranceNumero,
+      'code_famille': codeFamille,
+    };
   }
 }
 
@@ -132,6 +162,30 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await prefs.remove('refresh_token');
     await prefs.remove('user_data');
     state = AuthState();
+  }
+
+  Future<bool> updateProfile(Map<String, dynamic> data) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final response = await apiClient.patch(ApiEndpoints.profile, data: data);
+
+      if (response.statusCode == 200) {
+        final user = User.fromJson(response.data);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_data', jsonEncode(response.data));
+        state = state.copyWith(user: user, isLoading: false);
+        return true;
+      }
+    } on DioException catch (e) {
+      String message = "Erreur lors de la mise à jour.";
+      if (e.response?.data is Map) {
+        message = (e.response?.data as Map).values.first.toString();
+      }
+      state = state.copyWith(isLoading: false, error: message);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: "Erreur: $e");
+    }
+    return false;
   }
 }
 

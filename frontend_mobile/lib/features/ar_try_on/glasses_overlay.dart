@@ -33,13 +33,6 @@ class GlassesOverlay extends ConsumerWidget {
               offset: Offset(off.dx * 36, off.dy * 24),
               child: Transform.scale(
                 scale: scale,
-                child: ColorFiltered(
-                  colorFilter: const ColorFilter.matrix(<double>[
-                    1, 0, 0, 0, 0,
-                    0, 1, 0, 0, 0,
-                    0, 0, 1, 0, 0,
-                    -1, -1, -1, 1.5, 1, // Transforme les couleurs claires en transparence
-                  ]),
                   child: SizedBox(
                     width: 320,
                     child: ProductImageLoader(
@@ -52,7 +45,6 @@ class GlassesOverlay extends ConsumerWidget {
                       ),
                     ),
                   ),
-                ),
               ),
             ),
           ),

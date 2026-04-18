@@ -8,6 +8,7 @@ import '../../features/products/product_detail_screen.dart';
 import '../../features/ocr/ocr_scan_screen.dart';
 import '../../features/ar_try_on/ar_try_on_screen.dart';
 import '../../features/products/product.dart';
+import '../../core/widgets/notification_bell.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -24,6 +25,9 @@ class HomeScreen extends ConsumerWidget {
             floating: false,
             pinned: true,
             backgroundColor: AppColors.brownDark,
+            actions: const [
+              NotificationBell(color: Colors.white),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               title: const Text('Smart Vision',
                   style: TextStyle(

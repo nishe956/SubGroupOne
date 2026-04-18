@@ -4,12 +4,16 @@ import 'edit_profile_screen.dart';
 import 'change_password_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers/settings_provider.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsState = ref.watch(settingsProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Paramètres', style: TextStyle(color: AppColors.brunFonce)),
@@ -39,13 +43,25 @@ class SettingsScreen extends StatelessWidget {
             context,
             'Notifications Push',
             Icons.notifications_none_outlined,
-            trailing: Switch(value: true, onChanged: (v) {}, activeThumbColor: AppColors.brunMoyen),
+            trailing: Switch(
+              value: settingsState.pushNotificationsEnabled, 
+              onChanged: (v) {
+                ref.read(settingsProvider.notifier).setPushNotifications(v);
+              }, 
+              activeThumbColor: AppColors.brunMoyen
+            ),
           ),
           _buildSettingsItem(
             context,
             'Email Marketing',
             Icons.email_outlined,
-            trailing: Switch(value: false, onChanged: (v) {}, activeThumbColor: AppColors.brunMoyen),
+            trailing: Switch(
+              value: settingsState.emailMarketingEnabled, 
+              onChanged: (v) {
+                ref.read(settingsProvider.notifier).setEmailMarketing(v);
+              }, 
+              activeThumbColor: AppColors.brunMoyen
+            ),
           ),
           const SizedBox(height: 32),
           _buildSettingsSection('Autre'),

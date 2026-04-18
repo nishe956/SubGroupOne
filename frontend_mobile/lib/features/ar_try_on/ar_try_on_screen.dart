@@ -205,21 +205,47 @@ class _ArTryOnScreenState extends ConsumerState<ArTryOnScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (controller != null && controller.value.isInitialized) ...[
-            Positioned.fill(
-              child: CameraPreview(controller),
-            ),
-            Positioned.fill(
-              child: CustomPaint(
-                painter: FaceGuidePainter(),
+            if (controller != null && controller.value.isInitialized) ...[
+              Positioned.fill(
+                child: RepaintBoundary(
+                  child: CameraPreview(controller),
+                ),
               ),
-            ),
-            Positioned.fill(
-              child: GlassesOverlay(
-                product: product,
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: FaceGuidePainter(),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ] else
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onScaleUpdate: (details) {
+                    if (details.scale != 1.0) {
+                      final current = ref.read(glassesOverlayScaleProvider);
+                      ref.read(glassesOverlayScaleProvider.notifier).state =
+                          (current * details.scale).clamp(0.5, 2.0);
+                    }
+                    if (details.focalPointDelta != Offset.zero) {
+                      final currentSnap = ref.read(glassesOverlayOffsetProvider);
+                      ref.read(glassesOverlayOffsetProvider.notifier).state =
+                          OffsetSnapshot(
+                        currentSnap.dx + (details.focalPointDelta.dx / 36),
+                        currentSnap.dy + (details.focalPointDelta.dy / 24),
+                      );
+                    }
+                  },
+                  child: RepaintBoundary(
+                    child: GlassesOverlay(
+                      product: product,
+                    ),
+                  ),
+                ),
+              ),
+            ] else
             const Center(child: CircularProgressIndicator()),
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
@@ -232,15 +258,19 @@ class _ArTryOnScreenState extends ConsumerState<ArTryOnScreen> {
           ),
           Align(
             alignment: Alignment.bottomCenter,
-            child: ArControlSheet(
-              onClose: () => Navigator.of(context).maybePop(),
-              onCapture: _handleCapture,
+            child: RepaintBoundary(
+              child: ArControlSheet(
+                onClose: () => Navigator.of(context).maybePop(),
+                onCapture: _handleCapture,
+              ),
             ),
           ),
           if (_showFlash)
             Positioned.fill(
-              child: Container(
-                color: Colors.white,
+              child: IgnorePointer(
+                child: Container(
+                  color: Colors.white,
+                ),
               ),
             ),
         ],

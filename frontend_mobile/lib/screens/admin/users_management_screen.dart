@@ -3,16 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../features/admin/admin_providers.dart';
 import '../../../core/widgets/empty_state_widget.dart';
+import 'widgets/add_user_dialog.dart';
 
 class AdminUsersScreen extends ConsumerWidget {
   const AdminUsersScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final usersAsync = ref.watch(adminUsersProvider);
+    final usersAsync = ref.watch(adminUsersProvider('client'));
 
     return Scaffold(
       backgroundColor: AppColors.cream,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => showDialog(
+          context: context, 
+          builder: (_) => const AddUserDialog(initialRole: 'client')
+        ),
+        backgroundColor: AppColors.brunMoyen,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
       body: usersAsync.when(
         data: (users) => users.isEmpty
           ? const EmptyStateWidget(

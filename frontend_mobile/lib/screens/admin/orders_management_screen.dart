@@ -60,10 +60,15 @@ class _OrderCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Client:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text(order['user_email'] ?? 'Utilisateur Inconnu'),
+                    const Text('Client: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                    Expanded(
+                      child: Text(
+                        order['user_email'] ?? 'Utilisateur Inconnu',
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -77,8 +82,9 @@ class _OrderCard extends ConsumerWidget {
                 const Divider(height: 32),
                 const Text('Mettre à jour le statut:', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     _statusButton(context, ref, 'en_preparation', 'Préparation'),
                     _statusButton(context, ref, 'expedier', 'Expédiée'),

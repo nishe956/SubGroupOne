@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
@@ -22,8 +23,9 @@ const List<String> kGenderFilters = ['Homme', 'Femme', 'Unisexe'];
 
 /// Catalogue distant — on récupère via l'API.
 final productsCatalogProvider = FutureProvider<List<Product>>((ref) async {
+  final client = ref.watch(apiClientProvider);
   try {
-    final response = await apiClient.get(ApiEndpoints.getProducts);
+    final response = await client.get(ApiEndpoints.getProducts);
     if (response.statusCode == 200) {
       final List data = response.data;
       return data.map((json) => Product.fromJson(json)).toList();
@@ -86,9 +88,18 @@ final filteredProductsProvider = Provider<List<Product>>((ref) {
 /// IDs favoris.
 class FavoritesNotifier extends Notifier<Set<String>> {
   @override
-  Set<String> build() => <String>{};
+  Set<String> build() {
+    _loadFavorites();
+    return <String>{};
+  }
 
-  void toggle(String productId) {
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final favList = prefs.getStringList('favorites') ?? [];
+    state = favList.toSet();
+  }
+
+  Future<void> toggle(String productId) async {
     final next = {...state};
     if (next.contains(productId)) {
       next.remove(productId);
@@ -96,6 +107,8 @@ class FavoritesNotifier extends Notifier<Set<String>> {
       next.add(productId);
     }
     state = next;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('favorites', next.toList());
   }
 
   bool containsId(String id) => state.contains(id);
