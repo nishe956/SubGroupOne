@@ -15,15 +15,18 @@ class CommandeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Commande
         fields = [
-            'id', 'client', 'client_nom', 
+            'id', 'client', 'client_nom',
             'monture', 'monture_detail',
             'ordonnance', 'statut',
             'numero_assurance', 'nom_assurance',
-            'prix_total', 'date_commande', 
+            'methode_paiement', 'telephone_paiement',
+            'adresse_livraison', 'latitude', 'longitude',
+            'type_verre', 'options_verres', 'prix_verres',
+            'prix_total', 'date_commande',
             'date_mise_a_jour', 'notes'
         ]
         read_only_fields = [
-            'id', 'client', 'date_commande', 
+            'id', 'client', 'date_commande',
             'date_mise_a_jour', 'statut',
-            'prix_total'  # ← ajouté ici, calculé automatiquement
+            'prix_total'
         ]

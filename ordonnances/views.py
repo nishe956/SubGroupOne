@@ -2,9 +2,11 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.exceptions import ValidationError
 from .models import Ordonnance
 from .serializers import OrdonnanceSerializer
 from .ocr import analyser_ordonnance
+from utils.validators import valider_fichier_image_ou_pdf
 import os
 
 class AjouterOrdonnance(generics.CreateAPIView):
@@ -13,7 +15,28 @@ class AjouterOrdonnance(generics.CreateAPIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def perform_create(self, serializer):
-        serializer.save(client=self.request.user)
+        fichier = self.request.FILES.get('image')
+        if fichier:
+            valider_fichier_image_ou_pdf(fichier)
+        instance = serializer.save(client=self.request.user)
+
+        # Lance l'OCR via Grok Vision après la sauvegarde
+        if instance.image:
+            try:
+                image_path = instance.image.path
+                resultat = analyser_ordonnance(image_path)
+                if resultat['succes'] and resultat['valeurs_optiques']:
+                    v = resultat['valeurs_optiques']
+                    Ordonnance.objects.filter(pk=instance.pk).update(
+                        oeil_droit_sphere=v.get('oeil_droit_sphere'),
+                        oeil_droit_cylindre=v.get('oeil_droit_cylindre'),
+                        oeil_droit_axe=v.get('oeil_droit_axe'),
+                        oeil_gauche_sphere=v.get('oeil_gauche_sphere'),
+                        oeil_gauche_cylindre=v.get('oeil_gauche_cylindre'),
+                        oeil_gauche_axe=v.get('oeil_gauche_axe'),
+                    )
+            except Exception:
+                pass  # L'image est sauvegardée même si l'OCR échoue
 
 class ScannerOrdonnance(APIView):
     """

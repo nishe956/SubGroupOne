@@ -7,8 +7,9 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-cle-par-defaut')
-DEBUG = True
-ALLOWED_HOSTS = ['*']
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1')
+_hosts = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1')
+ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',') if h.strip()]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -22,6 +23,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'django_apscheduler',
 
     # Nos applications
     'users',
@@ -29,11 +31,21 @@ INSTALLED_APPS = [
     'commandes',
     'ordonnances',
     'essai_virtuel',
+    'publications',
+    'famille',
+    'marketing',
+    'sms_otp',
+    'stock_management',
+    'maintenance',
+    'stats',
+    'assurance',
+    'boutique',
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'config.middleware.SecurityHeadersMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -88,7 +100,37 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+# En dev : accepter localhost uniquement. En prod, définir CORS_ALLOWED_ORIGINS dans .env
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3000',
+    ]
+    CORS_ALLOW_ALL_ORIGINS = False
+else:
+    _cors = os.getenv('CORS_ALLOWED_ORIGINS', '')
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors.split(',') if o.strip()]
+    CORS_ALLOW_ALL_ORIGINS = False
+
+DEFAULT_FROM_EMAIL = os.getenv('EMAIL_FROM', 'noreply@optilunette.bf')
+
+if os.getenv('EMAIL_HOST'):
+    EMAIL_BACKEND  = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST     = os.getenv('EMAIL_HOST')
+    EMAIL_PORT     = int(os.getenv('EMAIL_PORT', 587))
+    EMAIL_USE_TLS  = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+    EMAIL_HOST_USER     = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+else:
+    # Fallback : affiche les emails dans la console (développement)
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    }
+}
 
 LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'Africa/Ouagadougou'

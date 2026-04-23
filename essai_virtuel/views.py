@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import permissions, status
 from .face_detection import essayer_monture
 
+
 class EssayerMontureView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

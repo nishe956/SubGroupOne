@@ -1,128 +1,102 @@
-import pytesseract
-import cv2
-import numpy as np
-import re
 import os
-from PIL import Image
+import base64
+import json
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Indique à pytesseract où trouver Tesseract
-pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_PATH')
 
-def ameliorer_image(image_path):
+def analyser_ordonnance(image_path: str) -> dict:
     """
-    Améliore la qualité de l'image avant de la lire
-    Plus l'image est claire, meilleure est la lecture OCR
+    Envoie l'image à Groq Vision et extrait les valeurs optiques.
     """
-    # Charge l'image avec OpenCV
-    image = cv2.imread(image_path)
-    
-    # Convertit en niveaux de gris
-    gris = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # Augmente le contraste
-    gris = cv2.equalizeHist(gris)
-    
-    # Réduit le bruit
-    gris = cv2.GaussianBlur(gris, (3, 3), 0)
-    
-    # Binarisation (noir et blanc pur)
-    _, binaire = cv2.threshold(
-        gris, 0, 255, 
-        cv2.THRESH_BINARY + cv2.THRESH_OTSU
-    )
-    
-    return binaire
+    api_key = os.getenv('GROQ_API_KEY')
+    if not api_key:
+        return {'succes': False, 'erreur': 'GROQ_API_KEY manquante dans .env', 'valeurs_optiques': None}
 
-def extraire_texte(image_path):
-    """
-    Extrait tout le texte d'une image d'ordonnance
-    """
-    # Améliore l'image d'abord
-    image_amelioree = ameliorer_image(image_path)
-    
-    # Convertit pour pytesseract
-    image_pil = Image.fromarray(image_amelioree)
-    
-    # Extrait le texte en français et anglais
-    texte = pytesseract.image_to_string(
-        image_pil, 
-        lang='fra+eng',
-        config='--psm 6'
-    )
-    
-    return texte
-
-def extraire_valeurs_optiques(texte):
-    """
-    Analyse le texte extrait et trouve les valeurs optiques
-    Les ordonnances contiennent : sphère, cylindre, axe
-    Exemple dans une ordonnance: OD: +1.50 -0.75 180
-    """
-    resultats = {
-        'oeil_droit_sphere': None,
-        'oeil_droit_cylindre': None,
-        'oeil_droit_axe': None,
-        'oeil_gauche_sphere': None,
-        'oeil_gauche_cylindre': None,
-        'oeil_gauche_axe': None,
-    }
-    
-    # Patterns pour trouver les valeurs
-    # Une valeur optique ressemble à : +1.50 ou -0.75 ou 1.25
-    pattern_valeur = r'[+-]?\d+[.,]\d+'
-    pattern_axe = r'\d{1,3}'
-    
-    lignes = texte.lower().split('\n')
-    
-    for ligne in lignes:
-        valeurs = re.findall(pattern_valeur, ligne)
-        valeurs = [float(v.replace(',', '.')) for v in valeurs]
-        
-        # Cherche oeil droit (OD, od, droit, right, RE)
-        if any(mot in ligne for mot in ['od', 'oeil droit', 'droit', 'right', 're', 'o.d']):
-            if len(valeurs) >= 1:
-                resultats['oeil_droit_sphere'] = valeurs[0]
-            if len(valeurs) >= 2:
-                resultats['oeil_droit_cylindre'] = valeurs[1]
-            # Cherche l'axe (nombre entre 0 et 180)
-            axes = re.findall(r'\b([0-9]|[1-9][0-9]|1[0-7][0-9]|180)\b', ligne)
-            if axes:
-                resultats['oeil_droit_axe'] = float(axes[-1])
-        
-        # Cherche oeil gauche (OG, og, gauche, left, LE)
-        if any(mot in ligne for mot in ['og', 'oeil gauche', 'gauche', 'left', 'le', 'o.g']):
-            if len(valeurs) >= 1:
-                resultats['oeil_gauche_sphere'] = valeurs[0]
-            if len(valeurs) >= 2:
-                resultats['oeil_gauche_cylindre'] = valeurs[1]
-            axes = re.findall(r'\b([0-9]|[1-9][0-9]|1[0-7][0-9]|180)\b', ligne)
-            if axes:
-                resultats['oeil_gauche_axe'] = float(axes[-1])
-    
-    return resultats
-
-def analyser_ordonnance(image_path):
-    """
-    Fonction principale qui combine tout :
-    1. Extrait le texte de l'image
-    2. Analyse le texte pour trouver les valeurs optiques
-    3. Retourne un résultat complet
-    """
     try:
-        texte_brut = extraire_texte(image_path)
-        valeurs = extraire_valeurs_optiques(texte_brut)
-        
+        with open(image_path, 'rb') as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+    except Exception as e:
+        return {'succes': False, 'erreur': f'Impossible de lire l\'image : {e}', 'valeurs_optiques': None}
+
+    ext = os.path.splitext(image_path)[1].lower()
+    mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'}
+    mime = mime_types.get(ext, 'image/jpeg')
+
+    client = OpenAI(
+        api_key=api_key,
+        base_url='https://api.groq.com/openai/v1',
+    )
+
+    prompt = """Tu es un assistant spécialisé dans la lecture d'ordonnances optiques.
+Analyse cette image et extrait les valeurs optiques.
+
+Retourne UNIQUEMENT un JSON valide avec cette structure exacte (null si la valeur n'est pas présente) :
+{
+  "oeil_droit_sphere": <nombre ou null>,
+  "oeil_droit_cylindre": <nombre ou null>,
+  "oeil_droit_axe": <nombre ou null>,
+  "oeil_gauche_sphere": <nombre ou null>,
+  "oeil_gauche_cylindre": <nombre ou null>,
+  "oeil_gauche_axe": <nombre ou null>
+}
+
+Notes :
+- OD / Oeil Droit / Right Eye / RE = oeil_droit
+- OG / Oeil Gauche / Left Eye / LE = oeil_gauche
+- Sph / Sphere = sphere
+- Cyl / Cylindre = cylindre
+- Axe = axe (valeur entre 0 et 180)
+- Les valeurs de sphère et cylindre peuvent être positives (+) ou négatives (-)
+- Retourne uniquement le JSON, sans texte autour."""
+
+    try:
+        response = client.chat.completions.create(
+            model='meta-llama/llama-4-scout-17b-16e-instruct',
+            messages=[
+                {
+                    'role': 'user',
+                    'content': [
+                        {
+                            'type': 'image_url',
+                            'image_url': {
+                                'url': f'data:{mime};base64,{image_data}',
+                            },
+                        },
+                        {
+                            'type': 'text',
+                            'text': prompt,
+                        },
+                    ],
+                }
+            ],
+            max_tokens=300,
+        )
+
+        texte = response.choices[0].message.content.strip()
+
+        if texte.startswith('```'):
+            texte = texte.split('```')[1]
+            if texte.startswith('json'):
+                texte = texte[4:]
+
+        valeurs = json.loads(texte)
+
         return {
             'succes': True,
-            'texte_brut': texte_brut,
-            'valeurs_optiques': valeurs
+            'valeurs_optiques': {
+                'oeil_droit_sphere':    valeurs.get('oeil_droit_sphere'),
+                'oeil_droit_cylindre':  valeurs.get('oeil_droit_cylindre'),
+                'oeil_droit_axe':       valeurs.get('oeil_droit_axe'),
+                'oeil_gauche_sphere':   valeurs.get('oeil_gauche_sphere'),
+                'oeil_gauche_cylindre': valeurs.get('oeil_gauche_cylindre'),
+                'oeil_gauche_axe':      valeurs.get('oeil_gauche_axe'),
+            }
         }
+
+    except json.JSONDecodeError as e:
+        return {'succes': False, 'erreur': f'Réponse non parseable : {e}', 'valeurs_optiques': None}
     except Exception as e:
-        return {
-            'succes': False,
-            'erreur': str(e),
-            'valeurs_optiques': None
-        }
+        return {'succes': False, 'erreur': str(e), 'valeurs_optiques': None}
