@@ -1,0 +1,15 @@
+Django==6.0.3
+djangorestframework==3.17.1
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.9.0
+django-apscheduler==0.7.0
+psycopg2-binary==2.9.11
+python-dotenv==1.0.1
+Pillow==12.2.0
+pytesseract==0.3.13
+opencv-python-headless==4.13.0.92
+numpy==2.4.4
+mediapipe==0.10.33
+python-docx==1.2.0
+qrcode==7.4.2
+APScheduler==3.11.2
