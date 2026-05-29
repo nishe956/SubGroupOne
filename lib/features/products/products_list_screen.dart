@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/auth/auth_provider.dart';
+import '../auth/login_screen.dart';
 import '../ocr/ocr_scan_screen.dart';
+import '../opticien/screens/opticien_login_screen.dart';
 import '../theme/app_theme.dart';
 import 'product.dart';
 import 'product_detail_screen.dart';
 import 'products_providers.dart';
 
-/// Grille de montures — recherche, 9 catégories, filtres genre, favoris.
 class ProductsListScreen extends ConsumerStatefulWidget {
   const ProductsListScreen({super.key});
 
@@ -18,15 +20,7 @@ class ProductsListScreen extends ConsumerStatefulWidget {
 
 class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   final _searchFocus = FocusNode();
-  late final TextEditingController _searchController;
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController = TextEditingController(
-      text: ref.read(searchQueryProvider),
-    );
-  }
+  final _searchController = TextEditingController();
 
   @override
   void dispose() {
@@ -39,20 +33,26 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
       NumberFormat.simpleCurrency(locale: 'fr_FR').format(eur);
 
   void _openGenderFilters() {
+    final active = ref.read(selectedGenderProvider);
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => const _GenderFiltersSheet(),
+      builder: (ctx) => _GenderFiltersSheet(
+        activeGender: active,
+        onChanged: (g) => ref.read(selectedGenderProvider.notifier).state = g,
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final productsState = ref.watch(productsProvider);
     final products = ref.watch(filteredProductsProvider);
     final selectedCat = ref.watch(selectedCategoryProvider);
-    final genderFilter = ref.watch(selectedGenderFilterProvider);
-    final favorites = ref.watch(favoritesProvider);
+    final selectedGender = ref.watch(selectedGenderProvider);
+    final searchQuery = ref.watch(searchQueryProvider);
+    final authState = ref.watch(authProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -94,6 +94,62 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                             icon: const Icon(Icons.document_scanner_outlined),
                           ),
                         ),
+                        // Bouton espace opticien
+                        Semantics(
+                          button: true,
+                          label: 'Espace opticien',
+                          child: IconButton(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const OpticienLoginScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.admin_panel_settings_outlined),
+                            tooltip: 'Espace opticien',
+                          ),
+                        ),
+                        // Bouton compte utilisateur
+                        if (authState.status == AuthStatus.authenticated)
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.account_circle_outlined),
+                            tooltip: 'Mon compte',
+                            onSelected: (value) {
+                              if (value == 'logout') {
+                                ref.read(authProvider.notifier).logout();
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              PopupMenuItem(
+                                enabled: false,
+                                child: Text(
+                                  authState.user?.username ?? '',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.brownDark,
+                                  ),
+                                ),
+                              ),
+                              const PopupMenuDivider(),
+                              const PopupMenuItem(
+                                value: 'logout',
+                                child: Text('Se déconnecter'),
+                              ),
+                            ],
+                          )
+                        else
+                          IconButton(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const LoginScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.login_rounded),
+                            tooltip: 'Se connecter',
+                          ),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -112,30 +168,26 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                           child: TextField(
                             controller: _searchController,
                             focusNode: _searchFocus,
-                            onChanged: (v) {
-                              ref.read(searchQueryProvider.notifier).state = v;
-                              setState(() {});
-                            },
+                            onChanged: (v) => ref
+                                .read(searchQueryProvider.notifier)
+                                .state = v,
                             textInputAction: TextInputAction.search,
                             decoration: InputDecoration(
                               hintText: 'Rechercher une monture…',
                               prefixIcon: const Icon(Icons.search_rounded,
                                   color: AppColors.brownMedium),
-                              suffixIcon:
-                                  ref.watch(searchQueryProvider).isNotEmpty
-                                      ? IconButton(
-                                          icon: const Icon(Icons.clear_rounded),
-                                          onPressed: () {
-                                            _searchController.clear();
-                                            ref
-                                                .read(searchQueryProvider
-                                                    .notifier)
-                                                .state = '';
-                                            setState(() {});
-                                          },
-                                          tooltip: 'Effacer',
-                                        )
-                                      : null,
+                              suffixIcon: searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear_rounded),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        ref
+                                            .read(searchQueryProvider.notifier)
+                                            .state = '';
+                                      },
+                                      tooltip: 'Effacer',
+                                    )
+                                  : null,
                             ),
                           ),
                         ),
@@ -164,7 +216,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                                 ),
                                 child: const Text('Filtres'),
                               ),
-                              if (genderFilter != null)
+                              if (selectedGender != null)
                                 Positioned(
                                   right: 6,
                                   top: 6,
@@ -218,7 +270,17 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 12)),
-            if (products.isEmpty)
+            if (productsState.status == ProductsStatus.loading)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.brownMedium,
+                    strokeWidth: 2,
+                  ),
+                ),
+              )
+            else if (products.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
@@ -251,16 +313,15 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                     crossAxisCount: 2,
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
-                    // Photo dominante, bandeau texte court.
                     childAspectRatio: 0.88,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final p = products[index];
-                      final fav = favorites.contains(p.id);
+                      final isFav = ref.watch(favoritesProvider).contains(p.id);
                       return _ProductCard(
                         product: p,
-                        isFavorite: fav,
+                        isFavorite: isFav,
                         priceLabel: _formatPrice(p.priceEur),
                         onTap: () {
                           Navigator.of(context).push(
@@ -277,9 +338,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                             ),
                           );
                         },
-                        onToggleFavorite: () => ref
-                            .read(favoritesProvider.notifier)
-                            .toggle(p.id),
+                        onToggleFavorite: () {
+                          ref.read(favoritesProvider.notifier).toggle(p.id);
+                        },
                       );
                     },
                     childCount: products.length,
@@ -294,7 +355,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   }
 }
 
-/// Carte horizontale minimaliste pour une catégorie.
 class _CategoryLuxeCard extends StatelessWidget {
   const _CategoryLuxeCard({
     required this.label,
@@ -351,8 +411,7 @@ class _CategoryLuxeCard extends StatelessWidget {
                       height: 1.25,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.15,
-                      color:
-                          selected ? AppColors.cream : AppColors.brownDark,
+                      color: selected ? AppColors.cream : AppColors.brownDark,
                       fontSize: 13,
                     ),
               ),
@@ -364,13 +423,17 @@ class _CategoryLuxeCard extends StatelessWidget {
   }
 }
 
-class _GenderFiltersSheet extends ConsumerWidget {
-  const _GenderFiltersSheet();
+class _GenderFiltersSheet extends StatelessWidget {
+  const _GenderFiltersSheet({
+    required this.activeGender,
+    required this.onChanged,
+  });
+
+  final String? activeGender;
+  final ValueChanged<String?> onChanged;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final active = ref.watch(selectedGenderFilterProvider);
-
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -398,10 +461,10 @@ class _GenderFiltersSheet extends ConsumerWidget {
                 const Spacer(),
                 TextButton(
                   onPressed: () {
-                    ref.read(selectedGenderFilterProvider.notifier).state =
-                        null;
+                    onChanged(null);
+                    Navigator.of(context).pop();
                   },
-                  child: Text(
+                  child: const Text(
                     'Réinitialiser',
                     style: TextStyle(
                       color: AppColors.brownMedium,
@@ -420,7 +483,7 @@ class _GenderFiltersSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             ...kGenderFilters.map((g) {
-              final isOn = active == g;
+              final isOn = activeGender == g;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Material(
@@ -429,10 +492,7 @@ class _GenderFiltersSheet extends ConsumerWidget {
                       : AppColors.nude.withValues(alpha: 0.45),
                   borderRadius: BorderRadius.circular(16),
                   child: InkWell(
-                    onTap: () {
-                      ref.read(selectedGenderFilterProvider.notifier).state =
-                          isOn ? null : g;
-                    },
+                    onTap: () => onChanged(isOn ? null : g),
                     borderRadius: BorderRadius.circular(16),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -522,22 +582,31 @@ class _ProductCard extends StatelessWidget {
                       tag: product.heroTag,
                       child: Material(
                         color: AppColors.cream,
-                        child: Image.asset(
-                          product.imageAsset,
-                          fit: BoxFit.cover,
-                          alignment: Alignment.center,
-                          width: double.infinity,
-                          height: double.infinity,
-                          errorBuilder: (_, __, ___) => ColoredBox(
-                            color: AppColors.nude,
-                            child: Icon(
-                              Icons.hide_image_outlined,
-                              size: 36,
-                              color: AppColors.brownMedium
-                                  .withValues(alpha: 0.45),
-                            ),
-                          ),
-                        ),
+                        child: product.isNetworkImage
+                            ? Image.network(
+                                product.imageAsset,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => ColoredBox(
+                                  color: AppColors.nude,
+                                  child: Icon(
+                                    Icons.hide_image_outlined,
+                                    size: 36,
+                                    color: AppColors.brownMedium.withValues(alpha: 0.45),
+                                  ),
+                                ),
+                              )
+                            : Image.asset(
+                                product.imageAsset,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => ColoredBox(
+                                  color: AppColors.nude,
+                                  child: Icon(
+                                    Icons.hide_image_outlined,
+                                    size: 36,
+                                    color: AppColors.brownMedium.withValues(alpha: 0.45),
+                                  ),
+                                ),
+                              ),
                       ),
                     ),
                     Positioned(
@@ -577,8 +646,7 @@ class _ProductCard extends StatelessWidget {
               Material(
                 color: AppColors.cream.withValues(alpha: 0.72),
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -606,8 +674,7 @@ class _ProductCard extends StatelessWidget {
                           height: 1.1,
                           letterSpacing: 0.2,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.brownMedium
-                              .withValues(alpha: 0.88),
+                          color: AppColors.brownMedium.withValues(alpha: 0.88),
                         ),
                       ),
                       const SizedBox(height: 5),

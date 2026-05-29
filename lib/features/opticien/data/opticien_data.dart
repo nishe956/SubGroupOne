@@ -1,0 +1,153 @@
+import '../models/commande_opticien.dart';
+import '../models/monture_opticien.dart';
+import '../models/opticien_profil.dart';
+
+/// Données statiques de démonstration — remplace opticien_service.dart.
+/// Pas de logique, pas de réseau. UI pure.
+
+const OpticienProfil kDemoOpticien = OpticienProfil(
+  id: 'op_001',
+  prenom: 'Sophie',
+  nom: 'Marchand',
+  boutique: 'Optique Esther — Paris 7e',
+  email: 'opticien@esther.fr',
+  telephone: '+33 6 12 34 56 78',
+  adresse: '42, rue de Sèvres, 75007 Paris',
+);
+
+final List<MontureOpticien> kMockMontures = [
+  const MontureOpticien(
+    id: 'm_001',
+    nom: 'Carrées Studio Silver',
+    marque: 'Esther Paris',
+    prix: 410,
+    description: 'Monture carrée adoucie, pont fin, verres clairs.',
+    categorie: 'Carrées',
+    couleur: 'Argent',
+    stock: 5,
+    estActive: true,
+    imageAsset: 'assets/products/product_01.png',
+    reference: 'CSS-220',
+  ),
+  const MontureOpticien(
+    id: 'm_002',
+    nom: 'Solaire Œil de Chat Stella',
+    marque: 'Esther Paris',
+    prix: 465,
+    description: 'Cat-eye surdimensionné, métal rose gold.',
+    categorie: 'Œil de chat (ou Cat-eye)',
+    couleur: 'Rose gold',
+    stock: 3,
+    estActive: true,
+    imageAsset: 'assets/products/product_02.png',
+    reference: 'OCS-778',
+  ),
+  const MontureOpticien(
+    id: 'm_003',
+    nom: 'Aviateur Doré Signature',
+    marque: 'Esther Paris',
+    prix: 455,
+    description: 'Double pont or brossé, lignes aérodynamiques.',
+    categorie: 'Aviateur',
+    couleur: 'Or brossé',
+    stock: 0,
+    estActive: false,
+    imageAsset: 'assets/products/product_11.png',
+    reference: 'ADS-991',
+  ),
+  const MontureOpticien(
+    id: 'm_004',
+    nom: 'Lunettes de Vue Titane Invisible',
+    marque: 'Esther Paris',
+    prix: 595,
+    description: 'Titane pur ultra-léger, sans monture.',
+    categorie: 'Lunettes de vue',
+    couleur: 'Titane',
+    stock: 8,
+    estActive: true,
+    imageAsset: 'assets/products/product_09.png',
+    reference: 'TIT-701',
+  ),
+];
+
+final List<CommandeOpticien> kMockCommandes = [
+  CommandeOpticien(
+    id: 'CMD-001',
+    nomClient: 'Amélie Dupont',
+    contactClient: '+33 6 11 22 33 44',
+    nomMonture: 'Carrées Studio Silver',
+    imageMonture: 'assets/products/product_01.png',
+    prixMonture: 410,
+    statut: StatutCommande.enAttente,
+    dateCommande: DateTime.now().subtract(const Duration(hours: 3)),
+    ordonnance: OrdonnanceDetail(
+      imageAsset: 'assets/products/product_01.png',
+      odSphere: '-1.75', odCylindre: '-0.50', odAxe: '170°',
+      ogSphere: '-2.00', ogCylindre: '-0.25', ogAxe: '15°',
+      pd: '63 mm', medecin: 'Dr. Leroux',
+      dateOrdonnance: DateTime(2025, 11, 10),
+    ),
+    assurance: const AssuranceDetail(
+      nomAssureur: 'Mutuelle Harmonie',
+      numeroPriseEnCharge: 'PEC-2025-00441',
+      tauxRemboursement: 75,
+    ),
+  ),
+  CommandeOpticien(
+    id: 'CMD-002',
+    nomClient: 'Marc Lefevre',
+    contactClient: '+33 7 55 66 77 88',
+    nomMonture: 'Aviateur Doré Signature',
+    imageMonture: 'assets/products/product_11.png',
+    prixMonture: 455,
+    statut: StatutCommande.validee,
+    dateCommande: DateTime.now().subtract(const Duration(days: 1)),
+    ordonnance: OrdonnanceDetail(
+      imageAsset: 'assets/products/product_11.png',
+      odSphere: '-3.00', odAddition: '+1.00',
+      ogSphere: '-3.25', ogAddition: '+1.00',
+      pd: '65 mm', medecin: 'Dr. Fontaine',
+      dateOrdonnance: DateTime(2025, 10, 5),
+    ),
+  ),
+  CommandeOpticien(
+    id: 'CMD-003',
+    nomClient: 'Chloé Bernard',
+    contactClient: '+33 6 99 88 77 66',
+    nomMonture: 'Solaire Œil de Chat Stella',
+    imageMonture: 'assets/products/product_02.png',
+    prixMonture: 465,
+    statut: StatutCommande.rejetee,
+    dateCommande: DateTime.now().subtract(const Duration(days: 2)),
+    ordonnance: OrdonnanceDetail(
+      imageAsset: 'assets/products/product_02.png',
+      odSphere: '+0.50', odCylindre: '-1.00', odAxe: '90°',
+      ogSphere: '+0.75', ogCylindre: '-0.75', ogAxe: '85°',
+      pd: '60 mm', medecin: 'Dr. Morel',
+      dateOrdonnance: DateTime(2025, 9, 22),
+    ),
+    commentaireRejet: 'Ordonnance expirée (> 3 ans). Veuillez fournir un document récent.',
+  ),
+  CommandeOpticien(
+    id: 'CMD-004',
+    nomClient: 'Louis Martin',
+    contactClient: '+33 6 44 33 22 11',
+    nomMonture: 'Lunettes de Vue Titane Invisible',
+    imageMonture: 'assets/products/product_09.png',
+    prixMonture: 595,
+    statut: StatutCommande.enAttente,
+    dateCommande: DateTime.now().subtract(const Duration(minutes: 45)),
+    ordonnance: OrdonnanceDetail(
+      imageAsset: 'assets/products/product_09.png',
+      odSphere: '-0.75', odCylindre: '-0.25', odAxe: '5°',
+      ogSphere: '-1.00',
+      pd: '61 mm', medecin: 'Dr. Simon',
+      dateOrdonnance: DateTime(2026, 1, 15),
+    ),
+    assurance: const AssuranceDetail(
+      nomAssureur: 'MGEN',
+      numeroPriseEnCharge: 'PEC-2026-00812',
+      tauxRemboursement: 100,
+    ),
+  ),
+];

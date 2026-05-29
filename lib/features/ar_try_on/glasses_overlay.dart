@@ -5,7 +5,6 @@ import '../products/product.dart';
 import '../theme/app_theme.dart';
 import 'ar_providers.dart';
 
-/// Overlay « lunettes » élégant — rendu purement visuel en attendant l’IA.
 class GlassesOverlay extends ConsumerWidget {
   const GlassesOverlay({
     super.key,
@@ -19,7 +18,8 @@ class GlassesOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scale = ref.watch(glassesOverlayScaleProvider);
-    final off = ref.watch(glassesOverlayOffsetProvider);
+    final ox = ref.watch(glassesOverlayOffsetXProvider);
+    final oy = ref.watch(glassesOverlayOffsetYProvider);
 
     return IgnorePointer(
       ignoring: true,
@@ -29,7 +29,7 @@ class GlassesOverlay extends ConsumerWidget {
           if (showGuides) const _SubtleVignette(),
           Center(
             child: Transform.translate(
-              offset: Offset(off.dx * 36, off.dy * 24),
+              offset: Offset(ox * 36, oy * 24),
               child: Transform.scale(
                 scale: scale,
                 child: _GlassesFrameSilhouette(
@@ -54,10 +54,7 @@ class _SubtleVignette extends StatelessWidget {
     return const DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Colors.transparent,
-            Color(0x33000000),
-          ],
+          colors: [Colors.transparent, Color(0x33000000)],
           begin: Alignment.center,
           end: Alignment.bottomCenter,
         ),
@@ -128,10 +125,7 @@ class _GlassesPainter extends CustomPainter {
     final bridge = Path()
       ..moveTo(cx - w * 0.06, h * 0.48)
       ..quadraticBezierTo(cx, h * 0.42, cx + w * 0.06, h * 0.48);
-    canvas.drawPath(
-      bridge,
-      stroke,
-    );
+    canvas.drawPath(bridge, stroke);
 
     final templeL = Path()
       ..moveTo(cx - w * 0.38, h * 0.5)

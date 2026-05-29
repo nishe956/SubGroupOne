@@ -10,7 +10,6 @@ import 'camera_screen.dart';
 import 'glasses_overlay.dart';
 import 'widgets/ar_control_sheet.dart';
 
-/// Expérience AR complète — prévisualisation, overlay, contrôles.
 class ArTryOnScreen extends ConsumerStatefulWidget {
   const ArTryOnScreen({super.key, required this.product});
 
@@ -46,10 +45,9 @@ class _ArTryOnScreenState extends ConsumerState<ArTryOnScreen> {
   }
 
   void _demoAdjustScale() {
-    final current = ref.read(glassesOverlayScaleProvider);
-    final next = (current >= 1.12) ? 0.92 : current + 0.06;
-    ref.read(glassesOverlayScaleProvider.notifier).state =
-        next.clamp(0.85, 1.2);
+    final s = ref.read(glassesOverlayScaleProvider);
+    final next = (s >= 1.12) ? 0.92 : s + 0.06;
+    ref.read(glassesOverlayScaleProvider.notifier).state = next.clamp(0.85, 1.2);
   }
 
   @override
@@ -109,43 +107,43 @@ class _ArTopHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-        color: AppColors.cream.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Essayage',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            letterSpacing: 1.6,
-                            color: AppColors.brownMedium,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    Text(
-                      productName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ],
-                ),
+      color: AppColors.cream.withValues(alpha: 0.9),
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Essayage',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          letterSpacing: 1.6,
+                          color: AppColors.brownMedium,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  Text(
+                    productName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: onDemoNudge,
-                child: const Text('Ajuster'),
-              ),
-            ],
-          ),
+            ),
+            TextButton(
+              onPressed: onDemoNudge,
+              child: const Text('Ajuster'),
+            ),
+          ],
         ),
+      ),
     );
   }
 }

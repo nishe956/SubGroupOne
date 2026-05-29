@@ -8,7 +8,6 @@ import '../theme/app_theme.dart';
 import 'product.dart';
 import 'products_providers.dart';
 
-/// Fiche produit — photo plein écran, description, prix, AR & favoris.
 class ProductDetailScreen extends ConsumerWidget {
   const ProductDetailScreen({super.key, required this.product});
 
@@ -19,8 +18,7 @@ class ProductDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final p = product;
-    final fav = ref.watch(favoritesProvider).contains(p.id);
+    final isFavorite = ref.watch(favoritesProvider).contains(product.id);
 
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -42,14 +40,16 @@ class ProductDetailScreen extends ConsumerWidget {
             actions: [
               Semantics(
                 button: true,
-                label: fav ? 'Retirer des favoris' : 'Ajouter aux favoris',
+                label: isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
                 child: IconButton(
                   icon: Icon(
-                    fav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                    color: fav ? AppColors.brownMedium : AppColors.brownDark,
+                    isFavorite
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    color: isFavorite ? AppColors.brownMedium : AppColors.brownDark,
                   ),
                   onPressed: () =>
-                      ref.read(favoritesProvider.notifier).toggle(p.id),
+                      ref.read(favoritesProvider.notifier).toggle(product.id),
                 ),
               ),
               const SizedBox(width: 8),
@@ -60,23 +60,34 @@ class ProductDetailScreen extends ConsumerWidget {
                 fit: StackFit.expand,
                 children: [
                   Hero(
-                    tag: p.heroTag,
-                    child: Image.asset(
-                      p.imageAsset,
-                      fit: BoxFit.cover,
-                      alignment: Alignment.center,
-                      width: double.infinity,
-                      height: double.infinity,
-                      errorBuilder: (_, __, ___) => ColoredBox(
-                        color: AppColors.nude,
-                        child: Icon(
-                          Icons.hide_image_outlined,
-                          size: 72,
-                          color:
-                              AppColors.brownMedium.withValues(alpha: 0.4),
-                        ),
-                      ),
-                    ),
+                    tag: product.heroTag,
+                    child: product.isNetworkImage
+                        ? Image.network(
+                            product.imageAsset,
+                            fit: BoxFit.cover,
+                            alignment: Alignment.center,
+                            errorBuilder: (_, __, ___) => ColoredBox(
+                              color: AppColors.nude,
+                              child: Icon(
+                                Icons.hide_image_outlined,
+                                size: 72,
+                                color: AppColors.brownMedium.withValues(alpha: 0.4),
+                              ),
+                            ),
+                          )
+                        : Image.asset(
+                            product.imageAsset,
+                            fit: BoxFit.cover,
+                            alignment: Alignment.center,
+                            errorBuilder: (_, __, ___) => ColoredBox(
+                              color: AppColors.nude,
+                              child: Icon(
+                                Icons.hide_image_outlined,
+                                size: 72,
+                                color: AppColors.brownMedium.withValues(alpha: 0.4),
+                              ),
+                            ),
+                          ),
                   ),
                   Positioned(
                     left: 0,
@@ -109,111 +120,24 @@ class ProductDetailScreen extends ConsumerWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Catégorie',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                    letterSpacing: 1.5,
-                                    color: AppColors.brownMedium,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.nude,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: AppColors.brownLight
-                                      .withValues(alpha: 0.55),
-                                ),
-                              ),
-                              child: Text(
-                                p.category,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.brownDark,
-                                      height: 1.3,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      Expanded(child: _InfoBox(label: 'Catégorie', value: product.category)),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Genre',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                    letterSpacing: 1.5,
-                                    color: AppColors.brownMedium,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.cream,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: AppColors.brownLight
-                                      .withValues(alpha: 0.65),
-                                ),
-                              ),
-                              child: Text(
-                                p.gender,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.brownDark,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      Expanded(child: _InfoBox(label: 'Genre', value: product.gender, light: true)),
                     ],
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    p.name,
+                    product.name,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: AppColors.brownDark,
                           height: 1.15,
                         ),
                   ),
-                  if (p.reference != null) ...[
+                  if (product.reference != null) ...[
                     const SizedBox(height: 8),
                     Text(
-                      'Réf. ${p.reference}',
+                      'Réf. ${product.reference}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppColors.brownMedium,
                           ),
@@ -221,7 +145,7 @@ class ProductDetailScreen extends ConsumerWidget {
                   ],
                   const SizedBox(height: 20),
                   Text(
-                    _formatPrice(p.priceEur),
+                    _formatPrice(product.priceEur),
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: AppColors.brownDark,
@@ -236,7 +160,7 @@ class ProductDetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    p.description,
+                    product.description,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: AppColors.brownDark.withValues(alpha: 0.88),
                           height: 1.5,
@@ -256,15 +180,10 @@ class ProductDetailScreen extends ConsumerWidget {
                     onPressed: () {
                       Navigator.of(context).push(
                         PageRouteBuilder<void>(
-                          pageBuilder: (_, __, ___) =>
-                              ArTryOnScreen(product: p),
+                          pageBuilder: (_, __, ___) => ArTryOnScreen(product: product),
                           transitionsBuilder: (_, animation, __, child) =>
-                              FadeTransition(
-                                opacity: animation,
-                                child: child,
-                              ),
-                          transitionDuration:
-                              const Duration(milliseconds: 320),
+                              FadeTransition(opacity: animation, child: child),
+                          transitionDuration: const Duration(milliseconds: 320),
                         ),
                       );
                     },
@@ -276,7 +195,7 @@ class ProductDetailScreen extends ConsumerWidget {
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => PaymentMethodScreen(product: p),
+                          builder: (_) => PaymentMethodScreen(product: product),
                         ),
                       );
                     },
@@ -288,6 +207,51 @@ class ProductDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _InfoBox extends StatelessWidget {
+  const _InfoBox({required this.label, required this.value, this.light = false});
+
+  final String label;
+  final String value;
+  final bool light;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                letterSpacing: 1.5,
+                color: AppColors.brownMedium,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: light ? AppColors.cream : AppColors.nude,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.brownLight.withValues(alpha: 0.55),
+            ),
+          ),
+          child: Text(
+            value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.brownDark,
+                  height: 1.3,
+                ),
+          ),
+        ),
+      ],
     );
   }
 }

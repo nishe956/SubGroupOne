@@ -5,24 +5,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_theme.dart';
 import 'ocr_providers.dart';
 
-/// Affichage du texte OCR avec actions de copie / effacement.
 class OcrResultScreen extends ConsumerWidget {
   const OcrResultScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final text = ref.watch(ocrExtractedTextProvider);
+    final textContent = ref.watch(ocrExtractedTextProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Résultat du scan'),
         actions: [
-          if (text.isNotEmpty)
+          if (textContent.isNotEmpty)
             IconButton(
               tooltip: 'Copier',
               icon: const Icon(Icons.copy_rounded),
               onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: text));
+                await Clipboard.setData(ClipboardData(text: textContent));
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -33,7 +32,7 @@ class OcrResultScreen extends ConsumerWidget {
             ),
         ],
       ),
-      body: text.isEmpty
+      body: textContent.isEmpty
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -67,7 +66,7 @@ class OcrResultScreen extends ConsumerWidget {
                   ),
                 ),
                 child: SelectableText(
-                  text,
+                  textContent,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         height: 1.55,
                         color: AppColors.brownDark,
@@ -79,11 +78,8 @@ class OcrResultScreen extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
           child: OutlinedButton(
-            onPressed: () {
-              ref.read(ocrExtractedTextProvider.notifier).state = '';
-              Navigator.of(context).pop();
-            },
-            child: const Text('Effacer et fermer'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Fermer'),
           ),
         ),
       ),

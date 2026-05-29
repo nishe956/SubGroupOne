@@ -1,38 +1,39 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../products/product.dart';
 import '../theme/app_theme.dart';
 import 'payment_confirmation_screen.dart';
 
-/// Méthode choisie (affichage uniquement — pas d’appel réseau).
+/// Méthode de paiement sélectionnée.
 enum PaymentUiMethod { applePay, amex, visa, mastercard }
 
-final selectedPaymentMethodProvider =
-    StateProvider<PaymentUiMethod>((ref) => PaymentUiMethod.visa);
-
 /// Choix des moyens de paiement — cartes façon « carte physique » luxe.
-class PaymentMethodScreen extends ConsumerWidget {
+/// UI pure — méthode sélectionnée gérée localement avec setState.
+class PaymentMethodScreen extends StatefulWidget {
   const PaymentMethodScreen({super.key, required this.product});
 
   final Product product;
+
+  @override
+  State<PaymentMethodScreen> createState() => _PaymentMethodScreenState();
+}
+
+class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
+  PaymentUiMethod _selected = PaymentUiMethod.visa;
 
   String _formatPrice(double eur) =>
       NumberFormat.simpleCurrency(locale: 'fr_FR').format(eur);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(selectedPaymentMethodProvider);
-
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Paiement'),
-      ),
+      appBar: AppBar(title: const Text('Paiement')),
       body: ListView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
         children: [
+          // Récapitulatif commande
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -53,12 +54,12 @@ class PaymentMethodScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  product.name,
+                  widget.product.name,
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  _formatPrice(product.priceEur),
+                  _formatPrice(widget.product.priceEur),
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -69,49 +70,46 @@ class PaymentMethodScreen extends ConsumerWidget {
           const SizedBox(height: 28),
           Text(
             'Moyen de paiement',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 16),
           _PaymentOptionCard(
-            selected: selected == PaymentUiMethod.applePay,
+            selected: _selected == PaymentUiMethod.applePay,
             title: 'Apple Pay',
             subtitle: 'Règlement express sécurisé',
             leading: Icons.apple_rounded,
             accent: AppColors.brownDark,
-            onTap: () => ref.read(selectedPaymentMethodProvider.notifier).state =
-                PaymentUiMethod.applePay,
+            onTap: () => setState(() => _selected = PaymentUiMethod.applePay),
           ),
           const SizedBox(height: 12),
           _PaymentOptionCard(
-            selected: selected == PaymentUiMethod.amex,
+            selected: _selected == PaymentUiMethod.amex,
             title: 'American Express',
             subtitle: '••••  ······  1002',
             leading: Icons.credit_card_rounded,
             accent: const Color(0xFF2E77AB),
-            onTap: () => ref.read(selectedPaymentMethodProvider.notifier).state =
-                PaymentUiMethod.amex,
+            onTap: () => setState(() => _selected = PaymentUiMethod.amex),
           ),
           const SizedBox(height: 12),
           _PaymentOptionCard(
-            selected: selected == PaymentUiMethod.visa,
+            selected: _selected == PaymentUiMethod.visa,
             title: 'Visa',
             subtitle: 'Débit · Signature Or',
             leading: Icons.credit_card_rounded,
             accent: const Color(0xFF1A4B8C),
-            onTap: () => ref.read(selectedPaymentMethodProvider.notifier).state =
-                PaymentUiMethod.visa,
+            onTap: () => setState(() => _selected = PaymentUiMethod.visa),
           ),
           const SizedBox(height: 12),
           _PaymentOptionCard(
-            selected: selected == PaymentUiMethod.mastercard,
+            selected: _selected == PaymentUiMethod.mastercard,
             title: 'Mastercard',
             subtitle: '••••  ······  8891',
             leading: Icons.credit_card_rounded,
             accent: AppColors.brownMedium,
-            onTap: () => ref.read(selectedPaymentMethodProvider.notifier).state =
-                PaymentUiMethod.mastercard,
+            onTap: () => setState(() => _selected = PaymentUiMethod.mastercard),
           ),
           const SizedBox(height: 32),
           FilledButton(
@@ -119,8 +117,8 @@ class PaymentMethodScreen extends ConsumerWidget {
               Navigator.of(context).push(
                 PageRouteBuilder<void>(
                   pageBuilder: (_, __, ___) => PaymentConfirmationScreen(
-                    product: product,
-                    method: selected,
+                    product: widget.product,
+                    method: _selected,
                   ),
                   transitionsBuilder: (_, animation, __, child) =>
                       FadeTransition(opacity: animation, child: child),
@@ -211,8 +209,7 @@ class _PaymentOptionCard extends StatelessWidget {
                       Text(
                         subtitle,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color:
-                                  AppColors.brownDark.withValues(alpha: 0.65),
+                              color: AppColors.brownDark.withValues(alpha: 0.65),
                             ),
                       ),
                     ],
@@ -230,8 +227,7 @@ class _PaymentOptionCard extends StatelessWidget {
                       : Icon(
                           Icons.radio_button_off_rounded,
                           key: const ValueKey('off'),
-                          color:
-                              AppColors.brownLight.withValues(alpha: 0.85),
+                          color: AppColors.brownLight.withValues(alpha: 0.85),
                         ),
                 ),
               ],

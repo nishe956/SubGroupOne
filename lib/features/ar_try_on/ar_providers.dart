@@ -1,27 +1,18 @@
 import 'package:camera/camera.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Contrôleur caméra — à initialiser et disposer via votre couche technique.
-/// Tant qu’il est `null`, l’UI affiche un placeholder plein écran élégant.
-final cameraControllerProvider =
-    StateProvider<CameraController?>((ref) => null);
-
-/// Flash (UI) — la bascule réelle du flash reste côté service caméra.
-final flashEnabledProvider = StateProvider<bool>((ref) => false);
-
-/// `true` = caméra frontale, `false` = arrière (commutateur visuel).
-final useFrontCameraProvider = StateProvider<bool>((ref) => true);
-
-/// Échelle de l’overlay lunettes (sera pilotée par la logique AR).
+/// Scale de l'overlay lunettes (1.0 = taille normale).
 final glassesOverlayScaleProvider = StateProvider<double>((ref) => 1.0);
 
-/// Décalage normalisé du centre (-1..1) pour preview futur.
-final glassesOverlayOffsetProvider =
-    StateProvider<OffsetSnapshot>((ref) => const OffsetSnapshot(0, 0));
+/// Décalage de l'overlay (en « unités de nudge »).
+final glassesOverlayOffsetXProvider = StateProvider<double>((ref) => 0.0);
+final glassesOverlayOffsetYProvider = StateProvider<double>((ref) => 0.0);
 
-/// Valeur simple sérialisable pour éviter [Offset] mutable dans le provider.
-class OffsetSnapshot {
-  const OffsetSnapshot(this.dx, this.dy);
-  final double dx;
-  final double dy;
-}
+/// Flash actif ou non.
+final flashEnabledProvider = StateProvider<bool>((ref) => false);
+
+/// true = caméra avant, false = caméra arrière.
+final useFrontCameraProvider = StateProvider<bool>((ref) => true);
+
+/// Contrôleur de caméra courant — null tant que non initialisé.
+final cameraControllerProvider = StateProvider<CameraController?>((ref) => null);

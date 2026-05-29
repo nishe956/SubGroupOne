@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../core/api/api_client.dart';
+import '../../core/services/ordonnances_service.dart';
 import '../theme/app_theme.dart';
 import 'ocr_providers.dart';
 import 'ocr_result_screen.dart';
 
-/// Écran de scan façon « document scanner » contemporain (UI seulement).
 class OcrScanScreen extends ConsumerStatefulWidget {
   const OcrScanScreen({super.key});
 
@@ -19,6 +21,12 @@ class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
     with TickerProviderStateMixin {
   late final AnimationController _pulse;
   late final AnimationController _sweep;
+
+  /// Chemin du dernier fichier sélectionné pour le scan.
+  String? _selectedImagePath;
+
+  /// Instance du picker.
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -40,18 +48,164 @@ class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
     super.dispose();
   }
 
-  Future<void> _simulateScan() async {
+  /// Ouvre un bottom sheet pour choisir la source de l'image.
+  Future<void> _choisirSource() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.cream,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: AppColors.brownLight.withValues(alpha: 0.55),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Source de l\'image',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.brownDark,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Choisissez d\'où importer votre ordonnance.',
+                style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                      color: AppColors.brownDark.withValues(alpha: 0.65),
+                    ),
+              ),
+              const SizedBox(height: 20),
+              _SourceOption(
+                icon: Icons.camera_alt_rounded,
+                label: 'Appareil photo',
+                subtitle: 'Prendre une photo de l\'ordonnance',
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              const SizedBox(height: 10),
+              _SourceOption(
+                icon: Icons.photo_library_rounded,
+                label: 'Galerie',
+                subtitle: 'Choisir une image existante',
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Annuler'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (source == null || !mounted) return;
+
+    final XFile? image = await _picker.pickImage(
+      source: source,
+      maxWidth: 2000,
+      maxHeight: 2000,
+      imageQuality: 85,
+    );
+
+    if (image == null || !mounted) return;
+
+    setState(() => _selectedImagePath = image.path);
+    await _scanOrdonnance();
+  }
+
+  /// Tente le scan via le backend OCR.
+  /// En cas d'échec réseau, utilise les données de démonstration.
+  Future<void> _scanOrdonnance() async {
     ref.read(ocrScanBusyProvider.notifier).state = true;
+
+    final isLoggedIn = await ApiClient.isLoggedIn();
+
+    if (isLoggedIn && _selectedImagePath != null) {
+      // ── Appel backend réel ──
+      try {
+        final result = await OrdonnancesService.scanner(
+          imagePath: _selectedImagePath!,
+        );
+
+        if (!mounted) {
+          ref.read(ocrScanBusyProvider.notifier).state = false;
+          return;
+        }
+
+        if (result.isSuccess && result.data != null) {
+          final data = result.data!;
+          final texteDetecte = data['texte_detecte'] as String? ?? '';
+          final valeurs = data['valeurs_extraites'] as Map<String, dynamic>?;
+
+          final sb = StringBuffer();
+          if (texteDetecte.isNotEmpty) {
+            sb.writeln('Texte détecté :');
+            sb.writeln(texteDetecte);
+            sb.writeln();
+          }
+          if (valeurs != null) {
+            sb.writeln('── Valeurs optiques extraites ──');
+            sb.writeln('Œil droit :');
+            sb.writeln('  Sphère   : ${valeurs['oeil_droit_sphere'] ?? '—'}');
+            sb.writeln('  Cylindre : ${valeurs['oeil_droit_cylindre'] ?? '—'}');
+            sb.writeln('  Axe      : ${valeurs['oeil_droit_axe'] ?? '—'}');
+            sb.writeln();
+            sb.writeln('Œil gauche :');
+            sb.writeln('  Sphère   : ${valeurs['oeil_gauche_sphere'] ?? '—'}');
+            sb.writeln('  Cylindre : ${valeurs['oeil_gauche_cylindre'] ?? '—'}');
+            sb.writeln('  Axe      : ${valeurs['oeil_gauche_axe'] ?? '—'}');
+          }
+
+          ref.read(ocrExtractedTextProvider.notifier).state = sb.toString();
+          ref.read(ocrScanBusyProvider.notifier).state = false;
+
+          await Navigator.of(context).push(
+            PageRouteBuilder<void>(
+              pageBuilder: (_, __, ___) => const OcrResultScreen(),
+              transitionsBuilder: (_, animation, __, child) =>
+                  FadeTransition(opacity: animation, child: child),
+            ),
+          );
+          return;
+        }
+      } catch (_) {
+        // Fallback sur données de démo en cas d'erreur
+      }
+    }
+
+    // ── Fallback : données de démonstration ──
     await Future<void>.delayed(const Duration(milliseconds: 1600));
-    if (!mounted) return;
+
+    if (!mounted) {
+      ref.read(ocrScanBusyProvider.notifier).state = false;
+      return;
+    }
+
     ref.read(ocrExtractedTextProvider.notifier).state =
-        'Monture : Atelier Nude — Optique\n'
-        'PD : 62 mm\n'
-        'Réf. fabricant : ATN-901\n'
-        'Verre conseillé : Blue UV 1.6\n\n'
-        '(Exemple statique — branchez votre OCR ici.)';
+        '── Valeurs optiques extraites (démo) ──\n\n'
+        'Œil droit :\n'
+        '  Sphère   : -1.75\n'
+        '  Cylindre : -0.50\n'
+        '  Axe      : 170°\n\n'
+        'Œil gauche :\n'
+        '  Sphère   : -2.00\n'
+        '  Cylindre : -0.25\n'
+        '  Axe      : 15°\n\n'
+        'PD : 63 mm\n'
+        'Médecin : Dr. Leroux\n\n'
+        '(Démo statique — connectez-vous et fournissez une image '
+        'pour lancer l\'OCR réel.)';
     ref.read(ocrScanBusyProvider.notifier).state = false;
-    if (!mounted) return;
+
     await Navigator.of(context).push(
       PageRouteBuilder<void>(
         pageBuilder: (_, __, ___) => const OcrResultScreen(),
@@ -65,7 +219,7 @@ class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
 
   @override
   Widget build(BuildContext context) {
-    final busy = ref.watch(ocrScanBusyProvider);
+    final isBusy = ref.watch(ocrScanBusyProvider);
 
     return Scaffold(
       backgroundColor: AppColors.brownDark,
@@ -100,13 +254,100 @@ class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
                         pulse: _pulse.value,
                         sweep: _sweep.value,
                       ),
-                      child: const SizedBox.expand(),
+                      child: _selectedImagePath != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.asset(
+                                _selectedImagePath!,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) =>
+                                    const SizedBox.expand(),
+                              ),
+                            )
+                          : const SizedBox.expand(),
                     );
                   },
                 ),
               ),
             ),
           ),
+          // ── Indication réseau ──
+          Positioned(
+            left: 24,
+            right: 24,
+            top: MediaQuery.of(context).padding.top + 56,
+            child: FutureBuilder<bool>(
+              future: ApiClient.isLoggedIn(),
+              builder: (ctx, snap) {
+                final loggedIn = snap.data ?? false;
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.cream.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        loggedIn
+                            ? Icons.cloud_done_outlined
+                            : Icons.cloud_off_outlined,
+                        size: 18,
+                        color: AppColors.cream.withValues(alpha: 0.7),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          loggedIn
+                              ? 'OCR backend connecté'
+                              : 'Mode démo — connectez-vous pour l\'OCR réel',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.cream.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          // ── Indication image sélectionnée ──
+          if (_selectedImagePath != null)
+            Positioned(
+              left: 24,
+              right: 24,
+              top: MediaQuery.of(context).padding.top + 100,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.cream.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.image_rounded,
+                      size: 18,
+                      color: AppColors.cream.withValues(alpha: 0.7),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Image sélectionnée ✓',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.cream.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           Positioned(
             left: 24,
             right: 24,
@@ -120,8 +361,8 @@ class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              onPressed: busy ? null : _simulateScan,
-              icon: busy
+              onPressed: isBusy ? null : _choisirSource,
+              icon: isBusy
                   ? const SizedBox(
                       width: 22,
                       height: 22,
@@ -131,10 +372,81 @@ class _OcrScanScreenState extends ConsumerState<OcrScanScreen>
                       ),
                     )
                   : const Icon(Icons.document_scanner_outlined),
-              label: Text(busy ? 'Analyse…' : 'Numériser le document'),
+              label: Text(isBusy ? 'Analyse…' : 'Numériser le document'),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Option dans le bottom sheet de choix de source d'image.
+class _SourceOption extends StatelessWidget {
+  const _SourceOption({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.nude.withValues(alpha: 0.45),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.brownMedium,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.cream, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: AppColors.brownDark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.brownDark.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.brownLight.withValues(alpha: 0.7),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -191,11 +503,11 @@ class _ScannerFramePainter extends CustomPainter {
       canvas.drawPath(path, corner);
     }
 
-    final pad = 10.0;
-    cornerLines(rect.topLeft + Offset(pad, pad), true, true);
-    cornerLines(rect.topRight + Offset(-pad, pad), true, false);
-    cornerLines(rect.bottomLeft + Offset(pad, -pad), false, true);
-    cornerLines(rect.bottomRight + Offset(-pad, -pad), false, false);
+    const pad = 10.0;
+    cornerLines(rect.topLeft + const Offset(pad, pad), true, true);
+    cornerLines(rect.topRight + const Offset(-pad, pad), true, false);
+    cornerLines(rect.bottomLeft + const Offset(pad, -pad), false, true);
+    cornerLines(rect.bottomRight + const Offset(-pad, -pad), false, false);
 
     final scanY = rect.top + sweep * rect.height;
     final scan = Paint()
@@ -206,10 +518,7 @@ class _ScannerFramePainter extends CustomPainter {
           AppColors.brownLight.withValues(alpha: 0.0),
         ],
       ).createShader(Rect.fromLTWH(rect.left, scanY - 8, rect.width, 16));
-    canvas.drawRect(
-      Rect.fromLTWH(rect.left, scanY - 2, rect.width, 4),
-      scan,
-    );
+    canvas.drawRect(Rect.fromLTWH(rect.left, scanY - 2, rect.width, 4), scan);
   }
 
   @override

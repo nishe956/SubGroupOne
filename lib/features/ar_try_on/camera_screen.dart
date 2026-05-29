@@ -5,28 +5,56 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_theme.dart';
 import 'ar_providers.dart';
 
-/// Zone de prévisualisation plein écran.
-/// Affiche [CameraPreview] si un [CameraController] valide est fourni via
-/// [cameraControllerProvider], sinon un placeholder premium.
-class CameraScreen extends ConsumerWidget {
+class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({
     super.key,
     this.overlay,
     this.placeholderLabel = 'Ouverture du miroir…',
   });
 
-  /// Calque AR (lunettes, guides…) — optionnel.
   final Widget? overlay;
-
-  /// Texte sous le pictogramme lorsque la caméra n’est pas branchée.
   final String placeholderLabel;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.watch(cameraControllerProvider);
-    final isReady = controller != null &&
-        controller.value.isInitialized &&
-        !controller.value.hasError;
+  ConsumerState<CameraScreen> createState() => _CameraScreenState();
+}
+
+class _CameraScreenState extends ConsumerState<CameraScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty || !mounted) return;
+      final cam = cameras.first;
+      final controller = CameraController(
+        cam,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+      await controller.initialize();
+      ref.read(cameraControllerProvider.notifier).state = controller;
+    } catch (_) {
+      // Caméra non disponible
+    }
+  }
+
+  @override
+  void dispose() {
+    ref.read(cameraControllerProvider)?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ctrl = ref.watch(cameraControllerProvider);
+    final isReady = ctrl != null &&
+        ctrl.value.isInitialized &&
+        !ctrl.value.hasError;
 
     return LayoutBuilder(
       builder: (context, c) {
@@ -36,25 +64,18 @@ class CameraScreen extends ConsumerWidget {
             fit: StackFit.expand,
             children: [
               if (isReady)
-                Builder(
-                  builder: (_) {
-                    final cam = controller;
-                    return FittedBox(
-                      fit: BoxFit.cover,
-                      clipBehavior: Clip.hardEdge,
-                      child: SizedBox(
-                        width:
-                            cam.value.previewSize?.height ?? c.maxWidth,
-                        height:
-                            cam.value.previewSize?.width ?? c.maxHeight,
-                        child: CameraPreview(cam),
-                      ),
-                    );
-                  },
+                FittedBox(
+                  fit: BoxFit.cover,
+                  clipBehavior: Clip.hardEdge,
+                  child: SizedBox(
+                    width: ctrl.value.previewSize?.height ?? c.maxWidth,
+                    height: ctrl.value.previewSize?.width ?? c.maxHeight,
+                    child: CameraPreview(ctrl),
+                  ),
                 )
               else
-                _LuxuryCameraPlaceholder(message: placeholderLabel),
-              if (overlay != null) overlay!,
+                _LuxuryCameraPlaceholder(message: widget.placeholderLabel),
+              if (widget.overlay != null) widget.overlay!,
             ],
           ),
         );

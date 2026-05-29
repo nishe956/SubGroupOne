@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../ar_providers.dart';
 
-/// Barre de contrôle flottante (fermer, flash, capture, flip caméra).
 class ArControlSheet extends ConsumerWidget {
   const ArControlSheet({
     super.key,
@@ -34,7 +33,7 @@ class ArControlSheet extends ConsumerWidget {
               _CircleIcon(
                 tooltip: 'Fermer',
                 icon: Icons.close_rounded,
-                semanticLabel: 'Fermer l’essayage',
+                semanticLabel: 'Fermer l\'essayage',
                 onTap: onClose,
               ),
               _CircleIcon(
@@ -98,11 +97,7 @@ class _CircleIcon extends StatelessWidget {
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.all(14),
-              child: Icon(
-                icon,
-                color: AppColors.brownDark,
-                size: 26,
-              ),
+              child: Icon(icon, color: AppColors.brownDark, size: 26),
             ),
           ),
         ),
