@@ -229,7 +229,7 @@ export default function OpticienMontures() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {montures.map(m => {
-                const imgSrc = m.image ? mediaUrl(m.image) : m.image_principale ? mediaUrl(m.image_principale) : null;
+                const imgSrc = m.image_principale ? mediaUrl(m.image_principale) : null;
                 return (
                   <tr key={m.id} className={`hover:bg-gray-50 ${m.stock <= 3 && m.stock > 0 ? 'bg-orange-50' : m.stock === 0 ? 'bg-red-50' : ''}`}>
                     <td className="px-4 py-3">
@@ -251,8 +251,8 @@ export default function OpticienMontures() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`badge ${m.disponible ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {m.disponible ? 'Actif' : 'Inactif'}
+                      <span className={`badge ${m.actif ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {m.actif ? 'Actif' : 'Inactif'}
                       </span>
                     </td>
                     <td className="px-4 py-3">

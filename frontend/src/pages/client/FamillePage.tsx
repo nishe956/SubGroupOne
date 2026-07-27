@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Plus, UserPlus, LogIn, Tag } from 'lucide-react';
 import api from '@/lib/api';
-import { GroupeFamille } from '@/types';
+import { GroupeFamille, User } from '@/types';
 import toast from 'react-hot-toast';
 
 export default function FamillePage() {
