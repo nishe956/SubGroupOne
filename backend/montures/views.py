@@ -31,9 +31,17 @@ class ListeMontures(generics.ListCreateAPIView):
         marque    = params.get('marque')
         search    = params.get('search')
         categorie = params.get('categorie')
+        type_     = params.get('type')
         prix_min  = params.get('prix_min') or params.get('minPrix')
         prix_max  = params.get('prix_max') or params.get('maxPrix')
         sort      = params.get('sort', '-date_ajout')
+
+        # Parcours "vue" : montures correctrices (vue + mixte).
+        # Parcours "solaire" : montures de style (solaire + mixte).
+        if type_ == 'vue':
+            qs = qs.filter(type__in=['vue', 'mixte'])
+        elif type_ == 'solaire':
+            qs = qs.filter(type__in=['solaire', 'mixte'])
 
         if forme:     qs = qs.filter(forme=forme)
         if couleur:   qs = qs.filter(couleur__icontains=couleur)
@@ -82,6 +90,13 @@ class UpdateStockMonture(APIView):
             monture = Monture.objects.get(pk=pk)
         except Monture.DoesNotExist:
             return Response({'detail': 'Monture introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Un opticien ne modifie le stock que de ses propres montures.
+        if request.user.role == 'opticien' and monture.ajoute_par != request.user:
+            return Response(
+                {'detail': 'Vous ne pouvez modifier que vos propres montures.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         stock = request.data.get('stock')
         if stock is None:

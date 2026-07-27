@@ -5,6 +5,8 @@ import { ReactNode } from 'react';
 // Auth pages
 import LoginPage from '@/pages/auth/LoginPage';
 import RegisterPage from '@/pages/auth/RegisterPage';
+import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
 
 // Landing
 import LandingPage from '@/pages/LandingPage';
@@ -65,6 +67,8 @@ const AppRoutes = () => {
       <Route path="/" element={home ? <Navigate to={home} replace /> : <LandingPage />} />
       <Route path="/login" element={user ? <Navigate to={home!} replace /> : <LoginPage />} />
       <Route path="/register" element={user ? <Navigate to={home!} replace /> : <RegisterPage />} />
+      <Route path="/mot-de-passe-oublie" element={user ? <Navigate to={home!} replace /> : <ForgotPasswordPage />} />
+      <Route path="/reinitialiser-mot-de-passe" element={user ? <Navigate to={home!} replace /> : <ResetPasswordPage />} />
 
       {/* Client routes */}
       <Route path="/" element={<ProtectedRoute roles={['client']}><ClientLayout /></ProtectedRoute>}>

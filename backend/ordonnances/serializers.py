@@ -15,4 +15,6 @@ class OrdonnanceSerializer(serializers.ModelSerializer):
             'oeil_gauche_sphere', 'oeil_gauche_cylindre', 'oeil_gauche_axe',
             'date_upload', 'validee'
         ]
-        read_only_fields = ['id', 'date_upload', 'client']
+        # 'validee' ne doit jamais être modifiable par le client : la validation
+        # passe exclusivement par ValiderOrdonnance (opticien/admin).
+        read_only_fields = ['id', 'date_upload', 'client', 'validee']

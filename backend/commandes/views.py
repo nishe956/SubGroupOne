@@ -16,11 +16,24 @@ class PasserCommande(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import ValidationError
+
         monture = serializer.validated_data['monture']
 
         if monture.stock <= 0:
-            from rest_framework.exceptions import ValidationError
             raise ValidationError({'detail': 'Cette monture est en rupture de stock.'})
+
+        # Sécurité : le client ne peut rattacher qu'une de ses propres ordonnances.
+        ordonnance = serializer.validated_data.get('ordonnance')
+        if ordonnance and ordonnance.client_id != self.request.user.id:
+            raise ValidationError({'ordonnance': "Cette ordonnance ne vous appartient pas."})
+
+        type_commande = self.request.data.get('type_commande', 'vue')
+
+        # Questionnaire de conception : dictionnaire de réponses libres.
+        conception = self.request.data.get('conception_verres', {})
+        if not isinstance(conception, dict):
+            conception = {}
 
         rabais   = float(self.request.data.get('rabais_famille', 0))
         prix     = float(monture.prix) * (1 - rabais)
@@ -49,12 +62,14 @@ class PasserCommande(generics.CreateAPIView):
             client=self.request.user,
             prix_total=prix,
             opticien=opticien,
+            type_commande=type_commande if type_commande in ('vue', 'style') else 'vue',
             methode_paiement=methode_paiement,
             telephone_paiement=telephone_paiement,
             adresse_livraison=adresse_livraison,
             numero_assurance=numero_police,
             type_verre=type_verre,
             options_verres=options_verres if isinstance(options_verres, list) else [],
+            conception_verres=conception,
             prix_verres=prix_verres,
         )
         if latitude is not None:
@@ -119,8 +134,12 @@ class GererCommande(APIView):
     permission_classes = [IsOpticienOuAdmin]
 
     def post(self, request, pk):
+        # Un opticien ne gère que les commandes qui lui sont rattachées ; l'admin, toutes.
+        qs = Commande.objects.all()
+        if request.user.role == 'opticien':
+            qs = qs.filter(opticien=request.user)
         try:
-            commande = Commande.objects.get(pk=pk)
+            commande = qs.get(pk=pk)
         except Commande.DoesNotExist:
             return Response({'detail': 'Commande introuvable'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -169,9 +188,10 @@ class AnnulerCommande(APIView):
         commande.save()
 
         # Remettre le stock
-        commande.monture.stock += 1
-        commande.monture.disponible = True
-        commande.monture.save(update_fields=['stock', 'disponible'])
+        if commande.monture:
+            commande.monture.stock += 1
+            commande.monture.disponible = True
+            commande.monture.save(update_fields=['stock', 'disponible'])
 
         envoyer_email_commande_rejetee(commande)
 

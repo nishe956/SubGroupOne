@@ -110,6 +110,125 @@ export const TYPES_VERRES: TypeVerre[] = [
   },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────
+// Questionnaire de conception des verres
+// Le client répond à des questions d'usage ; combinées à l'ordonnance (profil
+// visuel), elles déterminent une recommandation de verre + traitements.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface QuestionConception {
+  id: string;
+  question: string;
+  aide?: string;
+  options: { id: string; label: string; emoji?: string }[];
+}
+
+export const QUESTIONS_CONCEPTION: QuestionConception[] = [
+  {
+    id: 'usage_principal',
+    question: 'Quel sera l\'usage principal de vos lunettes ?',
+    aide: 'Cela nous aide à choisir le type de verre le plus adapté.',
+    options: [
+      { id: 'ecran', label: 'Travail sur écran / bureau', emoji: '💻' },
+      { id: 'conduite', label: 'Conduite', emoji: '🚗' },
+      { id: 'lecture', label: 'Lecture / vision de près', emoji: '📖' },
+      { id: 'exterieur', label: 'Extérieur / sport', emoji: '🌳' },
+      { id: 'polyvalent', label: 'Usage polyvalent', emoji: '✨' },
+    ],
+  },
+  {
+    id: 'temps_ecran',
+    question: 'Combien de temps passez-vous devant un écran chaque jour ?',
+    options: [
+      { id: 'faible', label: 'Moins de 2 h', emoji: '🌤' },
+      { id: 'moyen', label: 'Entre 2 h et 6 h', emoji: '🕑' },
+      { id: 'eleve', label: 'Plus de 6 h', emoji: '🌙' },
+    ],
+  },
+  {
+    id: 'conduite_nuit',
+    question: 'Conduisez-vous souvent la nuit ?',
+    aide: 'Un traitement anti-reflets améliore le confort nocturne.',
+    options: [
+      { id: 'oui', label: 'Oui, régulièrement', emoji: '🌃' },
+      { id: 'non', label: 'Rarement ou jamais', emoji: '☀️' },
+    ],
+  },
+  {
+    id: 'soleil',
+    question: 'Êtes-vous souvent exposé au soleil ?',
+    options: [
+      { id: 'souvent', label: 'Souvent', emoji: '🏖' },
+      { id: 'parfois', label: 'Parfois', emoji: '⛅' },
+      { id: 'rarement', label: 'Rarement', emoji: '🏠' },
+    ],
+  },
+  {
+    id: 'vision_pres_loin',
+    question: 'Avez-vous du mal à voir à la fois de près ET de loin ?',
+    aide: 'Cela peut indiquer une presbytie, mieux corrigée par des verres progressifs.',
+    options: [
+      { id: 'oui', label: 'Oui', emoji: '👓' },
+      { id: 'non', label: 'Non', emoji: '👁' },
+    ],
+  },
+];
+
+export type ReponsesConception = Record<string, string>;
+
+export interface RecommandationVerres {
+  typeVerreId: string;
+  optionsIds: string[];
+  explications: string[];
+}
+
+/**
+ * Combine le profil visuel (issu de l'ordonnance) et les réponses du client
+ * pour recommander un type de verre et des traitements.
+ */
+export function recommanderVerres(
+  profil: ProfilVisuel | null,
+  reponses: ReponsesConception,
+): RecommandationVerres {
+  const explications: string[] = [];
+  const optionsIds = new Set<string>();
+
+  // 1) Type de verre : d'abord la contrainte médicale, puis l'usage.
+  let typeVerreId = 'unifocal_simple';
+
+  if (reponses.vision_pres_loin === 'oui') {
+    typeVerreId = 'progressif';
+    explications.push('Vision de près et de loin difficile → verres progressifs.');
+  } else if (profil?.astigmate) {
+    typeVerreId = 'torique';
+    explications.push('Astigmatisme détecté sur l\'ordonnance → verres toriques.');
+  } else if (profil?.myope || profil?.hypermetrope) {
+    typeVerreId = 'unifocal_mince';
+    explications.push('Correction simple → verres unifocaux amincis, plus légers.');
+  }
+
+  // 2) Traitements selon l'usage.
+  if (reponses.temps_ecran === 'eleve' || reponses.usage_principal === 'ecran') {
+    optionsIds.add('antiblue');
+    optionsIds.add('anti_reflets');
+    explications.push('Exposition écran importante → filtre lumière bleue + anti-reflets.');
+  }
+  if (reponses.conduite_nuit === 'oui' || reponses.usage_principal === 'conduite') {
+    optionsIds.add('anti_reflets');
+    explications.push('Conduite (notamment de nuit) → traitement anti-reflets.');
+  }
+  if (reponses.soleil === 'souvent' || reponses.usage_principal === 'exterieur') {
+    optionsIds.add('photochromique');
+    optionsIds.add('uv');
+    explications.push('Exposition solaire fréquente → verres photochromiques + protection UV.');
+  } else if (reponses.soleil === 'parfois') {
+    optionsIds.add('uv');
+    explications.push('Protection UV recommandée pour préserver vos yeux.');
+  }
+
+  return { typeVerreId, optionsIds: [...optionsIds], explications };
+}
+
 export const OPTIONS_VERRES: OptionVerre[] = [
   {
     id: 'anti_reflets',

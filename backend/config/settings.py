@@ -1,12 +1,16 @@
 from pathlib import Path
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 import os
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-cle-par-defaut')
+# Aucune clé de repli : l'application refuse de démarrer sans SECRET_KEY explicite.
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise ImproperlyConfigured("La variable d'environnement SECRET_KEY est obligatoire.")
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1')
 _hosts = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 ALLOWED_HOSTS = [h.strip() for h in _hosts.split(',') if h.strip()]
@@ -22,6 +26,7 @@ INSTALLED_APPS = [
     # Bibliothèques
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_apscheduler',
 
@@ -92,20 +97,45 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'user': '1000/day',
+        'anon': '100/day',
+    }
 }
-
 from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
+
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+     'OPTIONS': {'min_length': 8}},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
 
 # En dev : accepter localhost uniquement. En prod, définir CORS_ALLOWED_ORIGINS dans .env
 if DEBUG:
     CORS_ALLOWED_ORIGINS = [
         'http://localhost:5173',
         'http://127.0.0.1:5173',
+        'https://localhost:5173',
+        'https://127.0.0.1:5173',
         'http://localhost:3000',
+    ]
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'https://localhost:5173',
+        'https://127.0.0.1:5173',
     ]
     CORS_ALLOW_ALL_ORIGINS = False
 else:
@@ -113,15 +143,25 @@ else:
     CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors.split(',') if o.strip()]
     CORS_ALLOW_ALL_ORIGINS = False
 
+# URL publique du frontend, utilisée pour construire les liens envoyés par email
+# (ex. réinitialisation de mot de passe).
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+
+# Client ID OAuth Google (Google Cloud Console) pour "Se connecter avec Google".
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+
 DEFAULT_FROM_EMAIL = os.getenv('EMAIL_FROM', 'noreply@optilunette.bf')
 
 if os.getenv('EMAIL_HOST'):
     EMAIL_BACKEND  = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST     = os.getenv('EMAIL_HOST')
     EMAIL_PORT     = int(os.getenv('EMAIL_PORT', 587))
-    EMAIL_USE_TLS  = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+    # TLS (port 587) et SSL (port 465) sont mutuellement exclusifs.
+    EMAIL_USE_SSL  = os.getenv('EMAIL_USE_SSL', 'False').lower() in ('true', '1')
+    EMAIL_USE_TLS  = (not EMAIL_USE_SSL) and os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1')
     EMAIL_HOST_USER     = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+    EMAIL_TIMEOUT       = 15
 else:
     # Fallback : affiche les emails dans la console (développement)
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

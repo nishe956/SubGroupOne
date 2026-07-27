@@ -15,7 +15,7 @@ class MontureSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Monture
         fields = [
-            'id', 'nom', 'marque', 'prix', 'categorie', 'forme',
+            'id', 'nom', 'marque', 'prix', 'type', 'categorie', 'forme',
             'couleur', 'image', 'description',
             'stock', 'disponible', 'date_ajout',
             'ajoute_par', 'ajoute_par_nom', 'galerie',

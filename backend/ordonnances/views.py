@@ -3,11 +3,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.exceptions import ValidationError
+from django.http import FileResponse, Http404
 from .models import Ordonnance
 from .serializers import OrdonnanceSerializer
 from .ocr import analyser_ordonnance
-from utils.validators import valider_fichier_image_ou_pdf
+from utils.validators import valider_fichier_image_ou_pdf, valider_image_seulement
 import os
+import tempfile
 
 class AjouterOrdonnance(generics.CreateAPIView):
     serializer_class = OrdonnanceSerializer
@@ -52,21 +54,30 @@ class ScannerOrdonnance(APIView):
                 {'erreur': 'Aucune image fournie'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         image = request.FILES['image']
-        
-        # Sauvegarde temporaire de l'image
-        chemin_temp = f'media/temp_{request.user.id}_{image.name}'
-        with open(chemin_temp, 'wb+') as f:
+
+        # Valide le contenu réel du fichier (signature magique + taille) avant tout traitement
+        valider_image_seulement(image)
+
+        # Le nom fourni par le client n'est jamais utilisé pour construire un chemin :
+        # on ne conserve que l'extension et on écrit dans un fichier temporaire sûr.
+        ext = os.path.splitext(image.name)[1].lower()
+        if ext not in ('.jpg', '.jpeg', '.png', '.webp'):
+            return Response({'erreur': 'Format non supporté.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
             for chunk in image.chunks():
-                f.write(chunk)
-        
-        # Analyse avec l'IA
-        resultat = analyser_ordonnance(chemin_temp)
-        
-        # Supprime le fichier temporaire
-        os.remove(chemin_temp)
-        
+                tmp.write(chunk)
+            chemin_temp = tmp.name
+
+        try:
+            # Analyse avec l'IA
+            resultat = analyser_ordonnance(chemin_temp)
+        finally:
+            # Supprime le fichier temporaire (chemin maîtrisé, généré par le système)
+            os.remove(chemin_temp)
+
         if not resultat['succes']:
             return Response(
                 {'erreur': resultat['erreur']},
@@ -132,3 +143,26 @@ class ValiderOrdonnance(APIView):
                 {'erreur': 'Ordonnance introuvable'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class TelechargerOrdonnance(APIView):
+    """
+    Sert l'image d'une ordonnance de façon authentifiée, avec contrôle de propriété.
+    Remplace l'accès public direct via /media/ (données médicales).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk):
+        qs = Ordonnance.objects.all()
+        if request.user.role == 'client':
+            qs = qs.filter(client=request.user)
+        try:
+            ordonnance = qs.get(pk=pk)
+        except Ordonnance.DoesNotExist:
+            raise Http404
+        if not ordonnance.image:
+            raise Http404
+        # En production, préférer une délégation Nginx via l'en-tête X-Accel-Redirect.
+        response = FileResponse(ordonnance.image.open('rb'))
+        response['Cache-Control'] = 'private, no-store'
+        return response

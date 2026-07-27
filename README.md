@@ -337,8 +337,8 @@ Suis les instructions (nom d'utilisateur, email, mot de passe). Note ces informa
 python manage.py runserver
 ```
 
-Le backend tourne sur **http://localhost:8000**  
-L'interface d'administration est disponible sur **http://localhost:8000/admin**
+Le backend tourne sur **https://localhost:8000**  
+L'interface d'administration est disponible sur **https://localhost:8000/admin**
 
 > Ne ferme pas ce terminal. Ouvre-en un nouveau pour le frontend.
 
@@ -358,6 +358,10 @@ Dans le dossier `frontend/`, crée un fichier `.env` avec ce contenu :
 
 ```env
 VITE_API_URL=http://localhost:8000/api
+VITE_API_TARGET=https://localhost:8000
+VITE_MEDIA_BASE=
+VITE_DEV_HTTPS=true
+VITE_PROXY_SECURE=false
 ```
 
 ### 6.3 Installer les dépendances JavaScript
@@ -374,7 +378,8 @@ npm install
 npm run dev
 ```
 
-Le frontend est accessible sur **http://localhost:5173**
+Le frontend est accessible sur **https://localhost:5173** (mode HTTPS local)  
+Si besoin, tu peux revenir en HTTP avec `VITE_DEV_HTTPS=false`.
 
 ---
 
@@ -395,7 +400,7 @@ cd Lunette-project\frontend
 npm run dev
 ```
 
-Ouvre ensuite **http://localhost:5173** dans ton navigateur.
+Ouvre ensuite **https://localhost:5173** dans ton navigateur.
 
 ---
 
@@ -411,8 +416,8 @@ Il y a trois types de comptes :
 
 **Créer des comptes de test :**
 
-- **Via l'application** → http://localhost:5173/register (crée un compte `client` par défaut)
-- **Via l'admin Django** → http://localhost:8000/admin → Users → changer le champ `role`
+- **Via l'application** → https://localhost:5173/register (crée un compte `client` par défaut)
+- **Via l'admin Django** → https://localhost:8000/admin → Users → changer le champ `role`
 - Le compte `superuser` créé à l'étape 5.7 peut se connecter directement sur l'app
 
 ---

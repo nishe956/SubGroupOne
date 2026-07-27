@@ -15,7 +15,20 @@ def _format_prix(montant):
     return f"{int(montant):,} F CFA".replace(",", ".")
 
 
-def _send(sujet, texte, html, destinataire):
+class _MontureSupprimee:
+    """Repli utilisé quand la monture d'une commande a été supprimée (opticien effacé)."""
+    marque = "Monture supprimée"
+    nom = ""
+    forme = ""
+    couleur = ""
+
+
+def _monture_ou_repli(commande):
+    return commande.monture or _MontureSupprimee()
+
+
+def _send(sujet, texte, html, destinataire, piece_jointe=None):
+    """Envoie l'email. `piece_jointe` = (nom_fichier, contenu_bytes, mimetype)."""
     try:
         msg = EmailMultiAlternatives(
             subject=sujet,
@@ -24,6 +37,8 @@ def _send(sujet, texte, html, destinataire):
             to=[destinataire],
         )
         msg.attach_alternative(html, "text/html")
+        if piece_jointe:
+            msg.attach(*piece_jointe)
         msg.send(fail_silently=False)
     except Exception as exc:
         logger.error("Erreur envoi email commande : %s", exc)
@@ -39,7 +54,7 @@ def envoyer_email_commande_recue(commande):
 
     nom    = _nom_client(commande)
     montant = _format_prix(commande.prix_total)
-    monture = commande.monture
+    monture = _monture_ou_repli(commande)
     date    = localtime(commande.date_commande).strftime("%d/%m/%Y à %H:%M")
     ref     = f"CMD-{commande.id:06d}"
 
@@ -139,7 +154,7 @@ def envoyer_email_commande_validee(commande):
 
     nom     = _nom_client(commande)
     montant = _format_prix(commande.prix_total)
-    monture = commande.monture
+    monture = _monture_ou_repli(commande)
     date    = localtime(commande.date_commande).strftime("%d/%m/%Y à %H:%M")
     ref     = f"CMD-{commande.id:06d}"
 
@@ -237,7 +252,8 @@ def envoyer_email_commande_validee(commande):
             </table>
 
             <p style="margin:0;font-size:14px;color:#6b7280;line-height:1.6;">
-              Conservez cet email comme preuve d'achat.
+              Votre facture est jointe à cet email au format PDF.
+              Conservez-la comme preuve d'achat.
               Pour toute question, contactez votre opticien.
             </p>
           </td>
@@ -256,7 +272,17 @@ def envoyer_email_commande_validee(commande):
 </body>
 </html>
 """
-    _send(sujet, texte, html, email)
+
+    # Génère la facture PDF et la joint à l'email.
+    piece_jointe = None
+    try:
+        from .facture import generer_facture_pdf
+        pdf = generer_facture_pdf(commande)
+        piece_jointe = (f"Facture_{ref}.pdf", pdf, "application/pdf")
+    except Exception as exc:
+        logger.error("Erreur génération facture PDF (commande %s) : %s", commande.id, exc)
+
+    _send(sujet, texte, html, email, piece_jointe=piece_jointe)
 
 
 # ---------------------------------------------------------------------------

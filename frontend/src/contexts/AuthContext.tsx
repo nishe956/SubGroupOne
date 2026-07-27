@@ -7,6 +7,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
   updateUser: (user: User) => void;
 }
@@ -41,9 +42,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(u);
   };
 
+  const loginWithGoogle = async (credential: string) => {
+    const res = await api.post('/users/google-login/', { credential });
+    const { access, refresh, user: u } = res.data;
+    localStorage.setItem('access_token', access);
+    localStorage.setItem('refresh_token', refresh);
+    setUser(u);
+  };
+
   const logout = async () => {
     try {
-      await api.post('/users/logout/');  // efface le cookie httpOnly refresh_token
+      const refresh = localStorage.getItem('refresh_token');
+      // Envoie le refresh token pour qu'il soit révoqué (blacklist) côté serveur.
+      await api.post('/users/logout/', refresh ? { refresh } : {});
     } catch {
       // continuer même si le serveur est indisponible
     }
@@ -57,7 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateUser = (u: User) => setUser(u);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginWithGoogle, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

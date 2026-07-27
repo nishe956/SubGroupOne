@@ -1,8 +1,27 @@
 import { useState, type ReactElement } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, Check, X, ChevronRight, ChevronDown, MapPin, ExternalLink, Clock, Package, Truck, Star } from 'lucide-react';
+import { FileText, Check, X, ChevronRight, ChevronDown, MapPin, ExternalLink, Clock, Package, Truck, Star, Eye, Glasses } from 'lucide-react';
 import api, { formatCFA } from '@/lib/api';
+import { QUESTIONS_CONCEPTION, TYPES_VERRES, OPTIONS_VERRES } from '@/utils/ordonnanceUtils';
 import toast from 'react-hot-toast';
+
+// Libellés lisibles pour les réponses du questionnaire de conception.
+const CONCEPTION_LABELS: Record<string, { question: string; options: Record<string, string> }> =
+  Object.fromEntries(QUESTIONS_CONCEPTION.map(q => [
+    q.id,
+    { question: q.question, options: Object.fromEntries(q.options.map(o => [o.id, o.label])) },
+  ]));
+
+// Ouvre l'image d'ordonnance de façon authentifiée (endpoint protégé).
+async function voirOrdonnance(id: number) {
+  try {
+    const res = await api.get(`/ordonnances/${id}/image/`, { responseType: 'blob' });
+    const url = URL.createObjectURL(res.data);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } catch {
+    toast.error("Impossible d'ouvrir l'ordonnance");
+  }
+}
 
 const statutLabels: Record<string, string> = {
   en_attente: 'En attente', validee: 'Validée', en_preparation: 'En préparation',
@@ -243,6 +262,75 @@ export default function OpticienCommandes() {
                           <div className="font-medium text-gray-800">{monture.nom}</div>
                           <div className="text-xs text-gray-500">{monture.marque} · {monture.forme} · {monture.couleur}</div>
                         </div>
+                        <span className={`ml-auto badge text-xs ${c.type_commande === 'style' ? 'bg-amber-100 text-amber-700' : 'bg-primary-100 text-primary-700'}`}>
+                          {c.type_commande === 'style' ? 'Style / Solaire' : 'Lunettes de vue'}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Ordonnance (parcours vue) */}
+                    {c.ordonnance_detail && (
+                      <div className="bg-white rounded-xl px-3 py-2 border border-primary-100">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="text-xs text-primary-700 font-medium flex items-center gap-1">
+                            <FileText className="w-3 h-3" /> Ordonnance
+                          </div>
+                          <button
+                            onClick={() => voirOrdonnance(c.ordonnance_detail.id)}
+                            className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium"
+                          >
+                            <Eye className="w-3 h-3" /> Voir l'ordonnance
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="text-gray-600">
+                            <span className="text-gray-400">Œil droit (OD) : </span>
+                            Sph {c.ordonnance_detail.oeil_droit_sphere ?? '—'} · Cyl {c.ordonnance_detail.oeil_droit_cylindre ?? '—'} · Axe {c.ordonnance_detail.oeil_droit_axe ?? '—'}
+                          </div>
+                          <div className="text-gray-600">
+                            <span className="text-gray-400">Œil gauche (OG) : </span>
+                            Sph {c.ordonnance_detail.oeil_gauche_sphere ?? '—'} · Cyl {c.ordonnance_detail.oeil_gauche_cylindre ?? '—'} · Axe {c.ordonnance_detail.oeil_gauche_axe ?? '—'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Verres commandés + réponses de conception */}
+                    {(c.type_verre || (c.options_verres && c.options_verres.length > 0) || (c.conception_verres && Object.keys(c.conception_verres).length > 0)) && (
+                      <div className="bg-white rounded-xl px-3 py-2 border border-gray-100">
+                        <div className="text-xs text-gray-500 font-medium flex items-center gap-1 mb-1.5">
+                          <Glasses className="w-3 h-3" /> Verres à fabriquer
+                        </div>
+                        {c.type_verre && (
+                          <div className="text-xs text-gray-700 mb-1">
+                            <span className="text-gray-400">Type : </span>
+                            {TYPES_VERRES.find(t => t.id === c.type_verre)?.nom || c.type_verre}
+                          </div>
+                        )}
+                        {c.options_verres && c.options_verres.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-1.5">
+                            {c.options_verres.map((oid: string) => (
+                              <span key={oid} className="badge bg-gray-100 text-gray-600 text-xs">
+                                {OPTIONS_VERRES.find(o => o.id === oid)?.nom || oid}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {c.conception_verres && Object.keys(c.conception_verres).length > 0 && (
+                          <div className="border-t border-gray-100 pt-1.5 mt-1 space-y-0.5">
+                            <div className="text-xs text-gray-400 mb-0.5">Réponses du client :</div>
+                            {Object.entries(c.conception_verres).map(([qid, val]) => {
+                              const q = CONCEPTION_LABELS[qid];
+                              if (!q) return null;
+                              return (
+                                <div key={qid} className="text-xs text-gray-600">
+                                  <span className="text-gray-400">{q.question} </span>
+                                  <span className="font-medium">{q.options[val as string] || String(val)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
 

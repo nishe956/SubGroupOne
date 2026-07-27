@@ -1,6 +1,7 @@
 # Python / Django
 env/
 .env
+certs/*.pem
 __pycache__/
 *.pyc
 *.pyo

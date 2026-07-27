@@ -1,13 +1,19 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Search, Filter, Camera, ShoppingCart } from 'lucide-react';
+import { Search, Filter, Camera, ShoppingCart, Glasses, Sun, LayoutGrid } from 'lucide-react';
 import api, { mediaUrl, formatCFA } from '@/lib/api';
 import { Monture } from '@/types';
 
+const TYPE_TABS = [
+  { val: '', label: 'Tout', icon: LayoutGrid },
+  { val: 'vue', label: 'Lunettes de vue', icon: Glasses },
+  { val: 'solaire', label: 'Solaire / Style', icon: Sun },
+];
+
 export default function CatalogPage() {
   const [filters, setFilters] = useState({
-    search: '', categorie: '', forme: '', couleur: '',
+    search: '', categorie: '', forme: '', couleur: '', type: '',
     minPrix: '', maxPrix: '', page: '1',
   });
 
@@ -48,6 +54,25 @@ export default function CatalogPage() {
         </div>
       </div>
 
+      {/* Choix du parcours : lunettes de vue ou solaire/style */}
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {TYPE_TABS.map(tab => {
+          const Icon = tab.icon;
+          const active = filters.type === tab.val;
+          return (
+            <button
+              key={tab.val}
+              onClick={() => setFilter('type', tab.val)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                active ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              <Icon className="w-4 h-4" /> {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="card mb-6">
         <div className="flex gap-3 flex-wrap">
           <div className="relative flex-1 min-w-48">
@@ -78,7 +103,7 @@ export default function CatalogPage() {
           </div>
           {Object.entries(filters).some(([k, v]) => k !== 'page' && v) && (
             <button
-              onClick={() => setFilters({ search: '', categorie: '', forme: '', couleur: '', minPrix: '', maxPrix: '', page: '1' })}
+              onClick={() => setFilters({ search: '', categorie: '', forme: '', couleur: '', type: '', minPrix: '', maxPrix: '', page: '1' })}
               className="btn-secondary flex items-center gap-2 text-sm"
             >
               <Filter className="w-4 h-4" /> Réinitialiser

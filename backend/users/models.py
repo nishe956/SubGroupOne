@@ -15,6 +15,19 @@ class User(AbstractUser):
         choices=ROLE_CHOICES,
         default='client'
     )
+
+    # Validation des comptes opticiens par un administrateur.
+    # 'approuve' par défaut : clients, admin et comptes existants ne sont pas impactés.
+    STATUT_VALIDATION_CHOICES = [
+        ('approuve', 'Approuvé'),
+        ('en_attente', 'En attente de validation'),
+        ('rejete', 'Rejeté'),
+    ]
+    statut_validation = models.CharField(
+        max_length=20,
+        choices=STATUT_VALIDATION_CHOICES,
+        default='approuve',
+    )
     telephone = models.CharField(max_length=20, blank=True)
     adresse = models.TextField(blank=True)
     date_naissance = models.DateField(null=True, blank=True)

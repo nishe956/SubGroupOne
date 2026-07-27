@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.utils import timezone
 from .models import CompagnieAssurance, DemandeRemboursement
 from .serializers import CompagnieAssuranceSerializer, DemandeRemboursementSerializer
-from users.permissions import IsOpticienOuAdmin
+from users.permissions import IsOpticienOuAdmin, IsAdminSeulement
 
 
 class ListeCompagnies(generics.ListCreateAPIView):
@@ -85,8 +85,8 @@ class MesDemandesRemboursement(generics.ListCreateAPIView):
 
 
 class TraiterDemande(APIView):
-    """Opticien/Admin met à jour le statut d'une demande."""
-    permission_classes = [IsOpticienOuAdmin]
+    """Seul l'admin approuve/rejette une demande de remboursement (enjeu financier)."""
+    permission_classes = [IsAdminSeulement]
 
     def post(self, request, pk):
         try:

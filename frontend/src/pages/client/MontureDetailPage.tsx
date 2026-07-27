@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Camera, ShoppingCart, ArrowLeft, Store, Package, CreditCard, Smartphone, Check, MapPin, Navigation, PenLine, Glasses } from 'lucide-react';
+import { Camera, ShoppingCart, ArrowLeft, Store, Package, CreditCard, Smartphone, Check, MapPin, Navigation, PenLine, Glasses, FileText, Sun } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api, { mediaUrl, formatCFA } from '@/lib/api';
 import { Monture, Ordonnance, CompagnieAssurance } from '@/types';
-import { interpreterOrdonnance, TYPES_VERRES, OPTIONS_VERRES } from '@/utils/ordonnanceUtils';
+import { interpreterOrdonnance, TYPES_VERRES, OPTIONS_VERRES, recommanderVerres, ReponsesConception } from '@/utils/ordonnanceUtils';
 import VerreSelector from '@/components/VerreSelector';
+import QuestionnaireConception from '@/components/QuestionnaireConception';
 import toast from 'react-hot-toast';
 
 type MethodePaiement = 'carte_bancaire' | 'orange_money' | 'wave';
@@ -69,6 +71,7 @@ export default function MontureDetailPage() {
   const [avecVerres, setAvecVerres] = useState(false);
   const [typeVerreId, setTypeVerreId] = useState('unifocal_simple');
   const [optionsVerres, setOptionsVerres] = useState<string[]>([]);
+  const [reponsesConception, setReponsesConception] = useState<ReponsesConception>({});
 
   const { data: monture, isLoading } = useQuery<Monture>({
     queryKey: ['monture', id],
@@ -174,12 +177,18 @@ export default function MontureDetailPage() {
 
   const orderMutation = useMutation({
     mutationFn: () => {
-      const typeVerre = avecVerres ? TYPES_VERRES.find(t => t.id === typeVerreId) : null;
-      const optsVerre = avecVerres ? OPTIONS_VERRES.filter(o => optionsVerres.includes(o.id)) : [];
-      const prixVerres = typeVerre ? typeVerre.prix + optsVerre.reduce((s, o) => s + o.prix, 0) : 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const estVue = ((monture as any)?.type === 'vue')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        || ((monture as any)?.type === 'mixte' && avecVerres);
+      const typeVerre = estVue ? TYPES_VERRES.find(t => t.id === typeVerreId) : null;
+      const optsVerre = OPTIONS_VERRES.filter(o => optionsVerres.includes(o.id));
+      const prixVerres = (typeVerre ? typeVerre.prix : 0) + optsVerre.reduce((s, o) => s + o.prix, 0);
       return api.post('/commandes/passer/', {
         monture: id,
-        ordonnance: ordonnanceId || undefined,
+        type_commande: estVue ? 'vue' : 'style',
+        ordonnance: estVue ? (ordonnanceId || undefined) : undefined,
+        conception_verres: estVue ? reponsesConception : undefined,
         notes,
         methode_paiement: methodePaiement,
         telephone_paiement: methodePaiement !== 'carte_bancaire' ? telephone : undefined,
@@ -207,6 +216,32 @@ export default function MontureDetailPage() {
     },
   });
 
+  // Parcours déterminé par le type de monture :
+  //  - 'vue'     → correction obligatoire (ordonnance + questionnaire)
+  //  - 'solaire' → style, sans correction ni ordonnance
+  //  - 'mixte'   → le client choisit (bascule "avec correction")
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const typeMonture: string = (monture as any)?.type || 'mixte';
+  const correction = typeMonture === 'vue' ? true : typeMonture === 'solaire' ? false : avecVerres;
+
+  const ordonnanceCourante = ordonnances.find(o => String(o.id) === ordonnanceId) ?? null;
+  const profilCourant = ordonnanceCourante ? interpreterOrdonnance(ordonnanceCourante) : null;
+
+  const recommandation = useMemo(
+    () => (correction ? recommanderVerres(profilCourant, reponsesConception) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [correction, profilCourant?.label, JSON.stringify(reponsesConception)],
+  );
+
+  // Applique automatiquement la recommandation ; le client peut ensuite ajuster.
+  useEffect(() => {
+    if (recommandation) {
+      setTypeVerreId(recommandation.typeVerreId);
+      setOptionsVerres(recommandation.optionsIds);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recommandation?.typeVerreId, JSON.stringify(recommandation?.optionsIds)]);
+
   if (isLoading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" /></div>;
   if (!monture) return <div className="text-center py-20 text-gray-400">Monture introuvable</div>;
 
@@ -220,14 +255,18 @@ export default function MontureDetailPage() {
   const montantAssurance = simulResult?.montant_rembourse
     ?? (selectedAssurance ? (Number(monture.prix) * selectedAssurance.taux_prise_charge) / 100 : 0);
 
-  const selectedOrdonnance = ordonnances.find(o => String(o.id) === ordonnanceId) ?? null;
-  const profilVisuel = selectedOrdonnance ? interpreterOrdonnance(selectedOrdonnance) : null;
+  const selectedOrdonnance = ordonnanceCourante;
+  const profilVisuel = profilCourant;
 
-  const typeVerreObj = avecVerres ? TYPES_VERRES.find(t => t.id === typeVerreId) : null;
-  const optsVerreObjs = avecVerres ? OPTIONS_VERRES.filter(o => optionsVerres.includes(o.id)) : [];
-  const prixVerresTotal = typeVerreObj ? typeVerreObj.prix + optsVerreObjs.reduce((s, o) => s + o.prix, 0) : 0;
+  // En parcours "vue", le type de verre correcteur compte ; en "style", seules
+  // les options légères (teinte, UV, anti-lumière bleue) s'appliquent.
+  const typeVerreObj = correction ? TYPES_VERRES.find(t => t.id === typeVerreId) : null;
+  const optsVerreObjs = OPTIONS_VERRES.filter(o => optionsVerres.includes(o.id));
+  const prixVerresTotal = (typeVerreObj ? typeVerreObj.prix : 0) + optsVerreObjs.reduce((s, o) => s + o.prix, 0);
   const prixBase = Number(monture.prix) * (1 - rabaisFamille);
   const totalCommande = prixBase + prixVerresTotal - montantAssurance;
+
+  const ordonnanceManquante = correction && !ordonnanceId;
 
   return (
     <div>
@@ -261,6 +300,9 @@ export default function MontureDetailPage() {
           <div className="text-sm text-gray-400 font-medium mb-1">{monture.marque}</div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{monture.nom}</h1>
           <div className="flex gap-2 mb-4 flex-wrap">
+            {typeMonture === 'vue' && <span className="badge bg-primary-100 text-primary-700 flex items-center gap-1"><Glasses className="w-3 h-3" /> Lunettes de vue</span>}
+            {typeMonture === 'solaire' && <span className="badge bg-amber-100 text-amber-700 flex items-center gap-1"><Sun className="w-3 h-3" /> Solaire / Style</span>}
+            {typeMonture === 'mixte' && <span className="badge bg-purple-100 text-purple-700">Vue ou style</span>}
             <span className="badge bg-gray-100 text-gray-600">{monture.forme}</span>
             <span className="badge bg-gray-100 text-gray-600">{monture.couleur}</span>
             <span className="badge bg-gray-100 text-gray-600">{monture.categorie}</span>
@@ -297,63 +339,124 @@ export default function MontureDetailPage() {
             <div className="card border border-primary-100 bg-primary-50">
               <h3 className="font-semibold text-gray-900 mb-4">Finaliser la commande</h3>
               <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ordonnance (optionnel)</label>
-                  <select
-                    value={ordonnanceId}
-                    onChange={e => {
-                      setOrdonnanceId(e.target.value);
-                      if (e.target.value) setAvecVerres(true);
-                      else { setAvecVerres(false); setTypeVerreId('unifocal_simple'); setOptionsVerres([]); }
-                    }}
-                    className="input-field"
-                  >
-                    <option value="">Sans ordonnance</option>
-                    {ordonnances.map(o => (
-                      <option key={o.id} value={o.id}>
-                        Ordonnance du {new Date(o.date_upload).toLocaleDateString('fr-FR')}
-                        {o.oeil_droit_sphere != null ? ` (OD: ${o.oeil_droit_sphere > 0 ? '+' : ''}${o.oeil_droit_sphere})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Monture mixte : le client choisit avec ou sans correction */}
+                {typeMonture === 'mixte' && (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAvecVerres(true)}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${avecVerres ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-500'}`}
+                    >
+                      <Glasses className="w-4 h-4" /> Avec correction
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAvecVerres(false)}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${!avecVerres ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-500'}`}
+                    >
+                      <Sun className="w-4 h-4" /> Sans correction (style)
+                    </button>
+                  </div>
+                )}
 
-                {/* Verres correcteurs */}
-                <div className={`rounded-xl border-2 transition-all overflow-hidden ${avecVerres ? 'border-primary-200 bg-white' : 'border-gray-200 bg-gray-50'}`}>
-                  <button
-                    type="button"
-                    onClick={() => setAvecVerres(v => !v)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left"
-                  >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${avecVerres ? 'bg-primary-100 text-primary-600' : 'bg-gray-200 text-gray-400'}`}>
-                      <Glasses className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-900">Ajouter des verres correcteurs</div>
-                      <div className="text-xs text-gray-500">
-                        {avecVerres
-                          ? (typeVerreObj ? `${typeVerreObj.nom} + options · ${formatCFA(prixVerresTotal)}` : 'Sélectionnez un type de verre')
-                          : 'Monture seule — sans verres de correction'}
+                {/* Parcours VUE : ordonnance obligatoire + questionnaire + verres */}
+                {correction ? (
+                  <>
+                    {/* Étape 1 — Ordonnance (obligatoire) */}
+                    <div className="rounded-xl border-2 border-primary-200 bg-white overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-3 bg-primary-50 border-b border-primary-100">
+                        <FileText className="w-4 h-4 text-primary-600" />
+                        <span className="text-sm font-semibold text-gray-900">1. Votre ordonnance</span>
+                        <span className="text-xs text-red-500 ml-auto">Obligatoire</span>
+                      </div>
+                      <div className="p-4">
+                        {ordonnances.length > 0 ? (
+                          <select
+                            value={ordonnanceId}
+                            onChange={e => setOrdonnanceId(e.target.value)}
+                            className={`input-field ${ordonnanceManquante ? 'border-red-300' : ''}`}
+                          >
+                            <option value="">— Choisissez votre ordonnance —</option>
+                            {ordonnances.map(o => (
+                              <option key={o.id} value={o.id}>
+                                Ordonnance du {new Date(o.date_upload).toLocaleDateString('fr-FR')}
+                                {o.oeil_droit_sphere != null ? ` (OD: ${o.oeil_droit_sphere > 0 ? '+' : ''}${o.oeil_droit_sphere})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="text-sm text-gray-600">
+                            <p className="mb-2">Vous n'avez pas encore d'ordonnance enregistrée.</p>
+                            <Link to="/ordonnances" className="btn-primary text-sm inline-flex">
+                              <FileText className="w-4 h-4" /> Ajouter mon ordonnance
+                            </Link>
+                          </div>
+                        )}
+                        {ordonnanceManquante && ordonnances.length > 0 && (
+                          <p className="text-xs text-red-500 mt-1">L'ordonnance est nécessaire pour des lunettes de vue.</p>
+                        )}
                       </div>
                     </div>
-                    <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${avecVerres ? 'border-primary-500 bg-primary-500' : 'border-gray-300'}`}>
-                      {avecVerres && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                  </button>
-                  {avecVerres && (
-                    <div className="px-4 pb-4 border-t border-primary-100">
-                      <div className="pt-3">
-                        <VerreSelector
-                          typeVerreId={typeVerreId}
-                          setTypeVerreId={setTypeVerreId}
-                          optionsChoisies={optionsVerres}
-                          setOptionsChoisies={setOptionsVerres}
-                          profil={profilVisuel}
-                        />
+
+                    {/* Étape 2 — Questionnaire de conception */}
+                    {ordonnanceId && (
+                      <div className="rounded-xl border-2 border-primary-200 bg-white overflow-hidden">
+                        <div className="flex items-center gap-2 px-4 py-3 bg-primary-50 border-b border-primary-100">
+                          <Glasses className="w-4 h-4 text-primary-600" />
+                          <span className="text-sm font-semibold text-gray-900">2. Conception de vos verres</span>
+                        </div>
+                        <div className="p-4 space-y-4">
+                          <QuestionnaireConception
+                            reponses={reponsesConception}
+                            setReponses={setReponsesConception}
+                            recommandation={recommandation}
+                          />
+                          <div className="border-t border-gray-100 pt-4">
+                            <VerreSelector
+                              typeVerreId={typeVerreId}
+                              setTypeVerreId={setTypeVerreId}
+                              optionsChoisies={optionsVerres}
+                              setOptionsChoisies={setOptionsVerres}
+                              profil={profilVisuel}
+                            />
+                          </div>
+                        </div>
                       </div>
+                    )}
+                  </>
+                ) : (
+                  /* Parcours STYLE : options légères seulement */
+                  <div className="rounded-xl border-2 border-gray-200 bg-white overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
+                      <Sun className="w-4 h-4 text-amber-500" />
+                      <span className="text-sm font-semibold text-gray-900">Options (facultatif)</span>
                     </div>
-                  )}
-                </div>
+                    <div className="p-4 space-y-2">
+                      {OPTIONS_VERRES.map(opt => {
+                        const checked = optionsVerres.includes(opt.id);
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setOptionsVerres(
+                              checked ? optionsVerres.filter(o => o !== opt.id) : [...optionsVerres, opt.id]
+                            )}
+                            className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${checked ? 'border-primary-400 bg-primary-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                          >
+                            <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${checked ? 'border-primary-500 bg-primary-500' : 'border-gray-300'}`}>
+                              {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-gray-900">{opt.nom}</div>
+                              <div className="text-xs text-gray-500">{opt.description}</div>
+                            </div>
+                            <div className="text-sm font-semibold text-gray-700 flex-shrink-0">+{formatCFA(opt.prix)}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Assurance (optionnel)</label>
                   <div className="flex gap-2">
@@ -652,8 +755,10 @@ export default function MontureDetailPage() {
                     <span className="text-primary-600">{formatCFA(totalCommande)}</span>
                   </div>
                 </div>
-                <button onClick={() => orderMutation.mutate()} disabled={orderMutation.isPending || (modeAdresse === 'gps' ? !gpsCoords : !adresseLivraison.trim())} className="btn-primary w-full disabled:opacity-50">
-                  {orderMutation.isPending ? 'Envoi...' : `Payer via ${METHODES_PAIEMENT.find(m => m.id === methodePaiement)?.label}`}
+                <button onClick={() => orderMutation.mutate()} disabled={orderMutation.isPending || ordonnanceManquante || (modeAdresse === 'gps' ? !gpsCoords : !adresseLivraison.trim())} className="btn-primary w-full disabled:opacity-50">
+                  {orderMutation.isPending ? 'Envoi...'
+                    : ordonnanceManquante ? 'Ajoutez votre ordonnance pour continuer'
+                    : `Payer via ${METHODES_PAIEMENT.find(m => m.id === methodePaiement)?.label}`}
                 </button>
               </div>
             </div>

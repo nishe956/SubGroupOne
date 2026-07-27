@@ -4,7 +4,8 @@ from .views import (
     ScannerOrdonnance,
     ListeOrdonnances,
     DetailOrdonnance,
-    ValiderOrdonnance
+    ValiderOrdonnance,
+    TelechargerOrdonnance,
 )
 
 urlpatterns = [
@@ -13,4 +14,5 @@ urlpatterns = [
     path('scanner/', ScannerOrdonnance.as_view(), name='scanner-ordonnance'),
     path('<int:pk>/', DetailOrdonnance.as_view(), name='detail-ordonnance'),
     path('<int:pk>/valider/', ValiderOrdonnance.as_view(), name='valider-ordonnance'),
+    path('<int:pk>/image/', TelechargerOrdonnance.as_view(), name='image-ordonnance'),
 ]

@@ -1,0 +1,4 @@
+certs/*.pem
+node_modules/
+dist/
+.env

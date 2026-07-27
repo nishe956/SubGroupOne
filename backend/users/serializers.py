@@ -22,8 +22,9 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'role', 'telephone', 'adresse', 'date_naissance',
             'compagnie_assurance', 'compagnie_assurance_detail', 'numero_police',
+            'statut_validation', 'date_joined',
         ]
-        read_only_fields = ['id', 'role']
+        read_only_fields = ['id', 'role', 'statut_validation', 'date_joined']
 
 
 class RegisterSerializer(serializers.ModelSerializer):

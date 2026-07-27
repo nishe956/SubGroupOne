@@ -29,20 +29,24 @@ class MaBoutique(APIView):
 
 
 class DetailBoutique(generics.RetrieveAPIView):
-    """Accès public au détail d'une boutique."""
-    queryset = BoutiqueOpticien.objects.filter(actif=True)
+    """Accès public au détail d'une boutique (opticien approuvé uniquement)."""
+    queryset = BoutiqueOpticien.objects.filter(
+        actif=True, opticien__statut_validation='approuve'
+    )
     serializer_class = BoutiqueSerializer
     permission_classes = [permissions.AllowAny]
 
 
 class ListeBoutiques(generics.ListAPIView):
-    """Liste publique de toutes les boutiques actives.
+    """Liste publique des boutiques actives d'opticiens approuvés.
     Supporte ?opticien=<user_id> pour filtrer par opticien."""
     serializer_class = BoutiqueSerializer
     permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
-        qs = BoutiqueOpticien.objects.filter(actif=True).order_by('nom')
+        qs = BoutiqueOpticien.objects.filter(
+            actif=True, opticien__statut_validation='approuve'
+        ).order_by('nom')
         opticien_id = self.request.query_params.get('opticien')
         if opticien_id:
             qs = qs.filter(opticien_id=opticien_id)

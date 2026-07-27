@@ -7,8 +7,14 @@ import toast from 'react-hot-toast';
 
 const defaultForm = {
   nom: '', marque: '', categorie: 'adulte', couleur: 'Noir',
-  forme: 'rectangulaire', prix: '', stock: '', description: '',
+  forme: 'rectangulaire', type: 'mixte', prix: '', stock: '', description: '',
 };
+
+const typeOptions = [
+  { val: 'vue', label: 'Lunettes de vue' },
+  { val: 'solaire', label: 'Solaire / Style' },
+  { val: 'mixte', label: 'Mixte (vue ou style)' },
+];
 
 export default function OpticienMontures() {
   const qc = useQueryClient();
@@ -138,6 +144,12 @@ export default function OpticienMontures() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Forme</label>
               <select value={form.forme} onChange={e => setForm(f => ({ ...f, forme: e.target.value }))} className="input-field">
                 {formeOptions.map(f => <option key={f.val} value={f.val}>{f.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className="input-field">
+                {typeOptions.map(t => <option key={t.val} value={t.val}>{t.label}</option>)}
               </select>
             </div>
             <div>

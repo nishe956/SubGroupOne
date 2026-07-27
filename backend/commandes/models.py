@@ -19,8 +19,10 @@ class Commande(models.Model):
         related_name='commandes'
     )
     monture = models.ForeignKey(
-        Monture, 
-        on_delete=models.CASCADE
+        Monture,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
     )
     ordonnance = models.ForeignKey(
         Ordonnance, 
@@ -63,8 +65,21 @@ class Commande(models.Model):
     adresse_livraison = models.TextField(blank=True)
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
+    TYPE_COMMANDE_CHOICES = [
+        ('vue', 'Lunettes de vue'),
+        ('style', 'Style / Solaire'),
+    ]
+    type_commande = models.CharField(
+        max_length=10,
+        choices=TYPE_COMMANDE_CHOICES,
+        default='vue',
+    )
+
     type_verre = models.CharField(max_length=50, blank=True)
     options_verres = models.JSONField(default=list, blank=True)
+    # Réponses du client au questionnaire de conception (usage, écran, conduite...).
+    # Sert à l'opticien pour savoir quels verres fabriquer.
+    conception_verres = models.JSONField(default=dict, blank=True)
     prix_verres = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     prix_total = models.DecimalField(max_digits=10, decimal_places=2)
     date_commande = models.DateTimeField(auto_now_add=True)

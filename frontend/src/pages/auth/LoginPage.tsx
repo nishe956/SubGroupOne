@@ -3,9 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import GoogleAuthButton from '@/components/auth/GoogleAuthButton';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -28,6 +29,16 @@ export default function LoginPage() {
       setError(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credential: string) => {
+    try {
+      await loginWithGoogle(credential);
+      toast.success('Connexion réussie');
+      navigate('/');
+    } catch {
+      toast.error('La connexion avec Google a échoué.');
     }
   };
 
@@ -56,7 +67,12 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
+              <Link to="/mot-de-passe-oublie" className="text-xs text-primary-600 font-medium hover:underline">
+                Mot de passe oublié ?
+              </Link>
+            </div>
             <div className="relative">
               <input
                 type={showPwd ? 'text' : 'password'}
@@ -84,6 +100,8 @@ export default function LoginPage() {
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>
         </form>
+
+        <GoogleAuthButton onSuccess={handleGoogleSuccess} />
 
         <p className="text-center text-sm text-gray-500 mt-6">
           Pas encore de compte ?{' '}

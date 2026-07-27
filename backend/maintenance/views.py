@@ -22,7 +22,7 @@ class StatutMaintenance(APIView):
 
 
 class ActiverMaintenance(APIView):
-    permission_classes = [IsOpticienOuAdmin]
+    permission_classes = [IsAdminSeulement]
 
     def post(self, request):
         message = request.data.get('message', 'Site en maintenance. Revenez bientôt.')
@@ -33,7 +33,7 @@ class ActiverMaintenance(APIView):
 
 
 class DesactiverMaintenance(APIView):
-    permission_classes = [IsOpticienOuAdmin]
+    permission_classes = [IsAdminSeulement]
 
     def post(self, request):
         cache.delete(MAINTENANCE_KEY)
@@ -43,7 +43,7 @@ class DesactiverMaintenance(APIView):
 
 
 class LogsSysteme(APIView):
-    permission_classes = [IsOpticienOuAdmin]
+    permission_classes = [IsAdminSeulement]
 
     def get(self, request):
         # Read Django log file if it exists

@@ -29,9 +29,20 @@ class Monture(models.Model):
         ('luxe', 'Luxe'),
     ]
 
+    # Détermine dans quel parcours la monture apparaît :
+    # - 'vue'     : lunettes correctrices (ordonnance obligatoire)
+    # - 'solaire' : lunettes de style/solaire sans correction
+    # - 'mixte'   : peut recevoir des verres correcteurs OU être portée en style
+    TYPE_CHOICES = [
+        ('vue', 'Lunettes de vue'),
+        ('solaire', 'Solaire / Style'),
+        ('mixte', 'Mixte'),
+    ]
+
     nom         = models.CharField(max_length=100)
     marque      = models.CharField(max_length=100)
     prix        = models.DecimalField(max_digits=10, decimal_places=2)
+    type        = models.CharField(max_length=10, choices=TYPE_CHOICES, default='mixte')
     categorie   = models.CharField(max_length=20, choices=CATEGORIE_CHOICES, default='adulte')
     forme       = models.CharField(max_length=20, choices=FORME_CHOICES)
     couleur     = models.CharField(max_length=50)
@@ -42,7 +53,7 @@ class Monture(models.Model):
     date_ajout  = models.DateTimeField(auto_now_add=True)
     ajoute_par  = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         null=True, blank=True,
         related_name='montures_ajoutees',
         verbose_name='Ajouté par',

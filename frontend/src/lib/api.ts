@@ -35,11 +35,12 @@ api.interceptors.response.use(
   }
 );
 
-export const MEDIA_BASE = 'http://localhost:8000';
+export const MEDIA_BASE = import.meta.env.VITE_MEDIA_BASE || '';
 
 export function mediaUrl(path: string | null | undefined): string {
   if (!path) return '';
   if (path.startsWith('http')) return path;
+  if (!MEDIA_BASE) return path;
   return `${MEDIA_BASE}${path}`;
 }
 

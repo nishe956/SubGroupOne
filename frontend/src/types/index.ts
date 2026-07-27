@@ -35,6 +35,7 @@ export interface Monture {
   nom: string;
   marque: string;
   categorie: string;
+  type?: 'vue' | 'solaire' | 'mixte';
   couleur: string;
   forme: string;
   prix: number;

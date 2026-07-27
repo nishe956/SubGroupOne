@@ -19,7 +19,7 @@ export default function AdminLayout() {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-900 flex">
       <aside className="w-64 bg-gray-900 text-white hidden md:flex flex-col">
         <div className="p-6 border-b border-gray-700">
           <div className="flex items-center gap-2">
