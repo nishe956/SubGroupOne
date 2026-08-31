@@ -1,7 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { User, Lock, Shield } from 'lucide-react';
-import api from '@/lib/api';
+import api, { listeDepuis } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { CompagnieAssurance } from '@/types';
 import toast from 'react-hot-toast';
@@ -25,7 +25,7 @@ export default function ProfilePage() {
 
   const { data: compagnies = [] } = useQuery<CompagnieAssurance[]>({
     queryKey: ['compagnies-assurance'],
-    queryFn: () => api.get('/assurance/compagnies/').then(r => r.data?.results || r.data),
+    queryFn: () => api.get('/assurance/compagnies/').then(r => listeDepuis<CompagnieAssurance>(r.data)),
   });
 
   const profileMutation = useMutation({

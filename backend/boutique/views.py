@@ -1,13 +1,19 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from users.permissions import CompteUtilisable
+from utils.validators import valider_image_seulement
+
 from .models import BoutiqueOpticien
 from .serializers import BoutiqueSerializer
 
 
 class MaBoutique(APIView):
     """Opticien GET/PUT sa propre boutique."""
-    permission_classes = [permissions.IsAuthenticated]
+    # CompteUtilisable plutôt que IsAuthenticated : un opticien rejeté ne doit
+    # plus pouvoir modifier la vitrine qui porte son nom.
+    permission_classes = [CompteUtilisable]
 
     def get(self, request):
         try:
@@ -21,6 +27,9 @@ class MaBoutique(APIView):
             boutique = BoutiqueOpticien.objects.get(opticien=request.user)
         except BoutiqueOpticien.DoesNotExist:
             return Response({'detail': 'Aucune boutique trouvée.'}, status=status.HTTP_404_NOT_FOUND)
+        logo = request.FILES.get('logo')
+        if logo:
+            valider_image_seulement(logo)
         serializer = BoutiqueSerializer(boutique, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()

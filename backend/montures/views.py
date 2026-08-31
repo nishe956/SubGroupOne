@@ -1,10 +1,38 @@
+from django.db.models import Q
 from rest_framework import generics, permissions, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Monture, MontureImage
-from .serializers import MontureSerializer, MontureImageSerializer
+
 from users.permissions import IsOpticienOuAdmin
+from utils.audit import journaliser
 from utils.validators import valider_image_seulement
+
+from .models import Monture, MontureImage
+from .serializers import MontureImageSerializer, MontureSerializer
+
+# Nombre maximal d'images dans la galerie d'une monture.
+MAX_IMAGES_GALERIE = 10
+
+
+def _monture_modifiable(user, pk):
+    """Retourne la monture si l'utilisateur a le droit de la modifier.
+
+    Ce contrôle manquait sur l'ajustement de stock et la gestion des images :
+    tout opticien pouvait mettre à zéro le stock d'un concurrent ou supprimer
+    ses visuels produit.
+    """
+    monture = Monture.objects.filter(pk=pk).first()
+    if monture is None:
+        return None, Response(
+            {'detail': 'Monture introuvable.'}, status=status.HTTP_404_NOT_FOUND
+        )
+    if user.role != 'admin' and monture.ajoute_par_id != user.id:
+        return None, Response(
+            {'detail': 'Vous ne pouvez modifier que vos propres montures.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return monture, None
 
 
 class ListeMontures(generics.ListCreateAPIView):
@@ -17,7 +45,7 @@ class ListeMontures(generics.ListCreateAPIView):
 
     def get_queryset(self):
         params = self.request.query_params
-        qs = Monture.objects.all()
+        qs = Monture.objects.select_related('ajoute_par').prefetch_related('galerie')
 
         if params.get('disponible') == 'true':
             qs = qs.filter(disponible=True)
@@ -44,27 +72,37 @@ class ListeMontures(generics.ListCreateAPIView):
             qs = qs.filter(type__in=['solaire', 'mixte'])
 
         if forme:     qs = qs.filter(forme=forme)
-        if couleur:   qs = qs.filter(couleur__icontains=couleur)
-        if marque:    qs = qs.filter(marque__icontains=marque)
+        if couleur:   qs = qs.filter(couleur__icontains=couleur[:50])
+        if marque:    qs = qs.filter(marque__icontains=marque[:100])
         if categorie: qs = qs.filter(categorie=categorie)
-        if search:    qs = qs.filter(nom__icontains=search) | qs.filter(marque__icontains=search)
-        if prix_min:  qs = qs.filter(prix__gte=prix_min)
-        if prix_max:  qs = qs.filter(prix__lte=prix_max)
+        if search:
+            terme = search[:100]
+            qs = qs.filter(Q(nom__icontains=terme) | Q(marque__icontains=terme))
+
+        # Les bornes de prix arrivent du client : une valeur non numérique
+        # provoquait une 500 au moment de l'évaluation du queryset.
+        for valeur, filtre in ((prix_min, 'prix__gte'), (prix_max, 'prix__lte')):
+            if valeur:
+                try:
+                    qs = qs.filter(**{filtre: float(valeur)})
+                except (TypeError, ValueError):
+                    pass
 
         valid_sorts = ['prix', '-prix', 'date_ajout', '-date_ajout', 'nom', '-nom']
-        if sort in valid_sorts:
-            qs = qs.order_by(sort)
-
-        return qs
+        return qs.order_by(sort if sort in valid_sorts else '-date_ajout')
 
     def perform_create(self, serializer):
         """Enregistre automatiquement l'opticien qui ajoute la monture."""
+        image = self.request.FILES.get('image')
+        if image:
+            valider_image_seulement(image)
         stock = serializer.validated_data.get('stock', 0)
-        serializer.save(ajoute_par=self.request.user, disponible=stock > 0)
+        monture = serializer.save(ajoute_par=self.request.user, disponible=stock > 0)
+        journaliser('monture_creee', self.request.user, monture_id=monture.pk)
 
 
 class DetailMonture(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Monture.objects.all()
+    queryset = Monture.objects.select_related('ajoute_par').prefetch_related('galerie')
     serializer_class = MontureSerializer
 
     def get_permissions(self):
@@ -74,37 +112,46 @@ class DetailMonture(generics.RetrieveUpdateDestroyAPIView):
 
     def check_object_permissions(self, request, obj):
         super().check_object_permissions(request, obj)
-        # Un opticien ne peut modifier/supprimer QUE ses propres montures
-        # Sauf l'admin qui peut tout faire
-        if request.method not in ('GET', 'HEAD', 'OPTIONS'):
-            if request.user.role == 'opticien' and obj.ajoute_par != request.user:
-                from rest_framework.exceptions import PermissionDenied
+        # Un opticien ne peut modifier/supprimer QUE ses propres montures.
+        if request.method not in permissions.SAFE_METHODS:
+            if request.user.role == 'opticien' and obj.ajoute_par_id != request.user.id:
                 raise PermissionDenied("Vous ne pouvez modifier que vos propres montures.")
+
+    def perform_update(self, serializer):
+        image = self.request.FILES.get('image')
+        if image:
+            valider_image_seulement(image)
+        serializer.save()
 
 
 class UpdateStockMonture(APIView):
     permission_classes = [IsOpticienOuAdmin]
 
     def patch(self, request, pk):
-        try:
-            monture = Monture.objects.get(pk=pk)
-        except Monture.DoesNotExist:
-            return Response({'detail': 'Monture introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+        monture, erreur = _monture_modifiable(request.user, pk)
+        if erreur:
+            return erreur
 
-        # Un opticien ne modifie le stock que de ses propres montures.
-        if request.user.role == 'opticien' and monture.ajoute_par != request.user:
+        try:
+            stock = int(request.data.get('stock'))
+        except (TypeError, ValueError):
             return Response(
-                {'detail': 'Vous ne pouvez modifier que vos propres montures.'},
-                status=status.HTTP_403_FORBIDDEN,
+                {'detail': 'Le champ stock doit être un entier.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        stock = request.data.get('stock')
-        if stock is None:
-            return Response({'detail': 'Champ stock requis.'}, status=status.HTTP_400_BAD_REQUEST)
+        if stock < 0:
+            return Response(
+                {'detail': 'Le stock ne peut pas être négatif.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        monture.stock = int(stock)
-        monture.disponible = monture.stock > 0
+        ancien = monture.stock
+        monture.stock = stock
+        monture.disponible = stock > 0
         monture.save(update_fields=['stock', 'disponible'])
+        journaliser('stock_modifie', request.user, monture_id=monture.pk,
+                    ancien=ancien, nouveau=stock)
         return Response(MontureSerializer(monture).data)
 
 
@@ -114,19 +161,18 @@ class RecommenderMontures(APIView):
     def post(self, request):
         # Recommandations basées sur l'ordonnance ou les préférences
         forme_visage = request.data.get('forme_visage')
-        usage        = request.data.get('usage', 'vue')  # vue | solaire | enfant
 
         qs = Monture.objects.filter(disponible=True, stock__gt=0)
 
         # Règles de recommandation selon forme du visage
-        if forme_visage == 'ovale':
-            qs = qs.filter(forme__in=['ronde', 'carree', 'rectangulaire'])
-        elif forme_visage == 'rond':
-            qs = qs.filter(forme__in=['rectangulaire', 'carree'])
-        elif forme_visage == 'carre':
-            qs = qs.filter(forme__in=['ronde', 'ovale'])
-        elif forme_visage == 'coeur':
-            qs = qs.filter(forme__in=['ronde', 'ovale'])
+        correspondances = {
+            'ovale': ['ronde', 'carree', 'rectangulaire'],
+            'rond':  ['rectangulaire', 'carree'],
+            'carre': ['ronde', 'ovale'],
+            'coeur': ['ronde', 'ovale'],
+        }
+        if forme_visage in correspondances:
+            qs = qs.filter(forme__in=correspondances[forme_visage])
 
         return Response(MontureSerializer(qs[:8], many=True).data)
 
@@ -136,22 +182,24 @@ class AjouterImage(APIView):
     permission_classes = [IsOpticienOuAdmin]
 
     def post(self, request, pk):
-        try:
-            monture = Monture.objects.get(pk=pk)
-        except Monture.DoesNotExist:
-            return Response({'detail': 'Monture introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+        monture, erreur = _monture_modifiable(request.user, pk)
+        if erreur:
+            return erreur
 
         image = request.FILES.get('image')
         if not image:
             return Response({'detail': 'Image requise.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            valider_image_seulement(image)
-        except Exception as e:
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        valider_image_seulement(image)
 
         ordre = MontureImage.objects.filter(monture=monture).count()
-        img   = MontureImage.objects.create(monture=monture, image=image, ordre=ordre)
+        if ordre >= MAX_IMAGES_GALERIE:
+            return Response(
+                {'detail': f'Maximum {MAX_IMAGES_GALERIE} images par monture.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        img = MontureImage.objects.create(monture=monture, image=image, ordre=ordre)
 
         # Si c'est la première image galerie, mettre aussi comme image principale
         if not monture.image:
@@ -166,9 +214,12 @@ class SupprimerImage(APIView):
     permission_classes = [IsOpticienOuAdmin]
 
     def delete(self, request, pk, image_id):
-        try:
-            img = MontureImage.objects.get(pk=image_id, monture_id=pk)
-        except MontureImage.DoesNotExist:
+        monture, erreur = _monture_modifiable(request.user, pk)
+        if erreur:
+            return erreur
+
+        img = MontureImage.objects.filter(pk=image_id, monture=monture).first()
+        if img is None:
             return Response({'detail': 'Image introuvable.'}, status=status.HTTP_404_NOT_FOUND)
 
         img.image.delete(save=False)  # Supprimer le fichier
@@ -181,10 +232,9 @@ class SupprimerImagePrincipale(APIView):
     permission_classes = [IsOpticienOuAdmin]
 
     def delete(self, request, pk):
-        try:
-            monture = Monture.objects.get(pk=pk)
-        except Monture.DoesNotExist:
-            return Response({'detail': 'Monture introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+        monture, erreur = _monture_modifiable(request.user, pk)
+        if erreur:
+            return erreur
 
         if monture.image:
             monture.image.delete(save=False)

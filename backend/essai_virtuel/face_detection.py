@@ -1,14 +1,50 @@
 import cv2
 import numpy as np
 import base64
+import binascii
+import os
 import mediapipe as mp
+
+from .couleurs import COULEURS
+
+
+LARGEUR_MAX = 4000
+HAUTEUR_MAX = 4000
+PIXELS_MAX = 12_000_000
+
+CHEMIN_MODELE = os.path.join(os.path.dirname(__file__), 'face_landmarker.task')
+
+
+class ImageInvalide(Exception):
+    """Erreur imputable à l'image fournie — message affichable à l'utilisateur."""
+
 
 def decoder_image(image_base64):
     if ',' in image_base64:
-        image_base64 = image_base64.split(',')[1]
-    image_bytes = base64.b64decode(image_base64)
+        image_base64 = image_base64.split(',', 1)[1]
+
+    try:
+        image_bytes = base64.b64decode(image_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise ImageInvalide("Image illisible.")
+
     image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+    if image_array.size == 0:
+        raise ImageInvalide("Image vide.")
+
+    # `IMREAD_REDUCED_COLOR_2` n'est pas utilisé : on veut connaître les
+    # dimensions réelles avant d'accepter le décodage complet.
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    if image is None:
+        raise ImageInvalide("Format d'image non reconnu.")
+
+    hauteur, largeur = image.shape[:2]
+    if largeur > LARGEUR_MAX or hauteur > HAUTEUR_MAX or largeur * hauteur > PIXELS_MAX:
+        raise ImageInvalide(
+            f"Image trop grande ({largeur}×{hauteur}). "
+            f"Maximum : {LARGEUR_MAX}×{HAUTEUR_MAX} pixels."
+        )
+
     return image
 
 def encoder_image(image):
@@ -24,9 +60,9 @@ def detecter_visage(image):
     VisionRunningMode = mp.tasks.vision.RunningMode
 
     options = FaceLandmarkerOptions(
-        base_options=BaseOptions(
-            model_asset_path='essai_virtuel/face_landmarker.task'
-        ),
+        # Chemin absolu : un chemin relatif dépend du répertoire de travail du
+        # process, qui n'est pas garanti sous gunicorn.
+        base_options=BaseOptions(model_asset_path=CHEMIN_MODELE),
         running_mode=VisionRunningMode.IMAGE,
         num_faces=1,
     )
@@ -110,41 +146,34 @@ def superposer_monture(image, position, couleur_monture=(0, 0, 0)):
     return image_result
 
 def essayer_monture(image_base64, couleur='noir'):
-    couleurs = {
-        'noir': (0, 0, 0),
-        'marron': (42, 82, 139),
-        'or': (0, 215, 255),
-        'argent': (192, 192, 192),
-        'rouge': (0, 0, 255),
-        'bleu': (255, 0, 0),
-    }
-    couleur_rgb = couleurs.get(couleur, (0, 0, 0))
+    
+    couleur_rgb = COULEURS.get(couleur, COULEURS['noir'])
     try:
         image = decoder_image(image_base64)
         points = detecter_visage(image)
         if not points:
             return {
                 'succes': False,
-                'erreur': 'Aucun visage détecté.',
-                'image': None
+                'erreur': 'Aucun visage détecté sur la photo.',
+                'public': True,
+                'image': None,
             }
         position = calculer_position_monture(points)
         if not position:
             return {
                 'succes': False,
-                'erreur': 'Impossible de calculer la position.',
-                'image': None
+                'erreur': "Le visage n'est pas assez net pour positionner la monture.",
+                'public': True,
+                'image': None,
             }
         image_result = superposer_monture(image, position, couleur_rgb)
         return {
             'succes': True,
             'image': encoder_image(image_result),
             'position_monture': position,
-            'nombre_points_visage': len(points)
+            'nombre_points_visage': len(points),
         }
-    except Exception as e:
-        return {
-            'succes': False,
-            'erreur': str(e),
-            'image': None
-        }
+    except ImageInvalide as exc:
+        return {'succes': False, 'erreur': str(exc), 'public': True, 'image': None}
+    except Exception as exc:
+        return {'succes': False, 'erreur': repr(exc), 'public': False, 'image': None}

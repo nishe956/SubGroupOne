@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Eye, Camera, FileText, Shield, Users, ArrowRight, ShoppingBag, Star, X } from 'lucide-react';
-import api, { mediaUrl, formatCFA } from '@/lib/api';
+import api, { mediaUrl, formatCFA, listeDepuis } from '@/lib/api';
 
 /* ── Modal invitation connexion ─────────────────────────────── */
 function AuthModal({ onClose }: { onClose: () => void }) {
@@ -158,11 +158,11 @@ export default function LandingPage() {
 
   const { data } = useQuery({
     queryKey: ['public-montures'],
-    queryFn: () => api.get('/montures/', { params: { disponible: 'true' } }).then(r => r.data),
+    queryFn: () => api.get('/montures/', { params: { disponible: 'true', page_size: '12' } }).then(r => listeDepuis(r.data)),
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const montures: any[] = Array.isArray(data) ? data : (data?.results || []);
+  const montures: any[] = data ?? [];
 
   const features = [
     { icon: Camera, title: 'Essai virtuel', desc: 'Essayez des montures en temps réel avec votre caméra.', color: 'bg-blue-100 text-blue-600' },

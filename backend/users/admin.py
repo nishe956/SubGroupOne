@@ -13,8 +13,11 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('role', 'telephone', 'adresse')
         }),
     )
-    list_display = ['username', 'email', 'role', 'is_staff']
-    list_filter = ['role', 'is_staff']
-    list_editable = ['role']  # permet de modifier le rôle directement dans la liste
+    list_display = ['username', 'email', 'role', 'statut_validation', 'is_staff']
+    list_filter = ['role', 'statut_validation', 'is_staff']
+    # `role` n'est volontairement PAS dans list_editable : un champ de privilège
+    # modifiable en un clic depuis la liste transforme un compte staff compromis
+    # en compte administrateur. Le changement passe par la fiche de détail.
+    readonly_fields = ['tokens_valides_apres']
 
 admin.site.register(User, CustomUserAdmin)

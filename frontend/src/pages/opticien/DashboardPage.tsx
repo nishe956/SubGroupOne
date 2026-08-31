@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Package, ShoppingBag, TrendingUp, Clock } from 'lucide-react';
-import api, { formatCFA } from '@/lib/api';
+import api, { formatCFA, listeDepuis } from '@/lib/api';
 
 const statutColors: Record<string, string> = {
   en_attente: 'bg-yellow-100 text-yellow-700',
@@ -24,11 +24,11 @@ export default function OpticienDashboard() {
 
   const { data: commandesData } = useQuery({
     queryKey: ['opticien-commandes'],
-    queryFn: () => api.get('/commandes/').then(r => r.data),
+    queryFn: () => api.get('/commandes/?page_size=100').then(r => listeDepuis(r.data)),
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const commandes: any[] = Array.isArray(commandesData) ? commandesData : (commandesData?.results || []);
+  const commandes: any[] = commandesData ?? [];
   const pending = commandes.filter(c => c.statut === 'en_attente').length;
   const revenue = commandes.filter(c => c.statut === 'livree').reduce((s: number, c: any) => s + Number(c.prix_total), 0);
 

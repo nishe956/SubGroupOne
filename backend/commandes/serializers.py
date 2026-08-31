@@ -32,10 +32,12 @@ class CommandeSerializer(serializers.ModelSerializer):
             'prix_total', 'date_commande',
             'date_mise_a_jour', 'notes'
         ]
+        # Tous les champs monétaires sont en lecture seule : ils sont calculés
+        # par commandes.tarifs à partir d'identifiants, jamais reçus du client.
         read_only_fields = [
             'id', 'client', 'date_commande',
             'date_mise_a_jour', 'statut',
-            'prix_total'
+            'prix_total', 'prix_verres', 'notes',
         ]
 
     def validate(self, attrs):

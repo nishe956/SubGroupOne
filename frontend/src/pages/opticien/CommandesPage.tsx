@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Check, X, ChevronRight, ChevronDown, MapPin, ExternalLink, Clock, Package, Truck, Star, Eye, Glasses } from 'lucide-react';
-import api, { formatCFA } from '@/lib/api';
+import api, { formatCFA, listeDepuis } from '@/lib/api';
 import { QUESTIONS_CONCEPTION, TYPES_VERRES, OPTIONS_VERRES } from '@/utils/ordonnanceUtils';
 import toast from 'react-hot-toast';
 
@@ -82,11 +82,11 @@ export default function OpticienCommandes() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['opticien-commandes'],
-    queryFn: () => api.get('/commandes/').then(r => r.data),
+    queryFn: () => api.get('/commandes/?page_size=100').then(r => listeDepuis(r.data)),
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const commandes: any[] = Array.isArray(data) ? data : (data?.results || []);
+  const commandes: any[] = data ?? [];
 
   const gererMutation = useMutation({
     mutationFn: ({ id, statut, notes }: { id: number; statut: string; notes?: string }) =>

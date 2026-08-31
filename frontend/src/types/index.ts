@@ -41,9 +41,10 @@ export interface Monture {
   prix: number;
   stock: number;
   images: string[];
+  image?: string;
   image_principale?: string;
   description?: string;
-  actif: boolean;
+  disponible: boolean;
   created_at: string;
   boutique?: { nom: string; adresse: string; telephone?: string };
 }
@@ -52,7 +53,9 @@ export interface Ordonnance {
   id: number;
   client?: number;
   client_nom?: string;
-  image?: string;
+  /** Endpoint authentifié — jamais une URL de stockage publique.
+   *  Utiliser <ImageOrdonnance id={...} /> pour l'afficher. */
+  image_url?: string | null;
   oeil_droit_sphere?: number;
   oeil_droit_cylindre?: number;
   oeil_droit_axe?: number;
@@ -153,13 +156,34 @@ export interface MaintenanceStatut {
   debut?: string;
 }
 
+export interface RevenuBoutique {
+  opticien_id: number | null;
+  boutique: string;
+  ca_total: number;
+  ca_mois: number;
+  nb_ventes: number;
+}
+
+export interface VenteMensuelle {
+  /** Mois formaté par l'API, ex. « Mar 2026 ». */
+  mois: string;
+  total: number;
+  clients: number;
+}
+
 export interface DashboardStats {
   total_clients: number;
   total_opticiens: number;
   total_commandes: number;
+  commandes_mois: number;
   total_montures: number;
+  montures_epuisees: number;
   chiffre_affaires: number;
+  revenus_mois: number;
+  ventes_mensuelles?: VenteMensuelle[];
   commandes_par_statut?: Record<string, number>;
+  /** Réservé à l'administrateur : vide pour un opticien (cloisonnement). */
+  revenus_par_boutique?: RevenuBoutique[];
 }
 
 export interface Segment {

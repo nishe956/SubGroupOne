@@ -1,6 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
+import { enregistrerVisite } from '@/lib/tracking';
 
 // Auth pages
 import LoginPage from '@/pages/auth/LoginPage';
@@ -37,6 +38,16 @@ import AdminOpticiens from '@/pages/admin/OpticiensPage';
 import AdminAssurances from '@/pages/admin/AssurancesPage';
 import AdminMaintenance from '@/pages/admin/MaintenancePage';
 
+// Page de statistiques partagée : l'admin voit le réseau, l'opticien sa boutique.
+import StatistiquesPage from '@/pages/StatistiquesPage';
+
+/** Enregistre une page vue à chaque changement de route (hors back-office). */
+const SuiviVisites = () => {
+  const { pathname } = useLocation();
+  useEffect(() => { enregistrerVisite(pathname); }, [pathname]);
+  return null;
+};
+
 const ProtectedRoute = ({ children, roles }: { children: ReactNode; roles?: string[] }) => {
   const { user, isLoading } = useAuth();
   if (isLoading) {
@@ -63,6 +74,8 @@ const AppRoutes = () => {
     : null;
 
   return (
+    <>
+    <SuiviVisites />
     <Routes>
       <Route path="/" element={home ? <Navigate to={home} replace /> : <LandingPage />} />
       <Route path="/login" element={user ? <Navigate to={home!} replace /> : <LoginPage />} />
@@ -85,6 +98,7 @@ const AppRoutes = () => {
       {/* Opticien routes */}
       <Route path="/opticien" element={<ProtectedRoute roles={['opticien']}><OpticienLayout /></ProtectedRoute>}>
         <Route index element={<OpticienDashboard />} />
+        <Route path="statistiques" element={<StatistiquesPage />} />
         <Route path="montures" element={<OpticienMontures />} />
         <Route path="commandes" element={<OpticienCommandes />} />
         <Route path="boutique" element={<BoutiquePage />} />
@@ -94,6 +108,7 @@ const AppRoutes = () => {
       {/* Admin routes */}
       <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminLayout /></ProtectedRoute>}>
         <Route index element={<AdminDashboard />} />
+        <Route path="statistiques" element={<StatistiquesPage />} />
         <Route path="utilisateurs" element={<AdminUsers />} />
         <Route path="opticiens" element={<AdminOpticiens />} />
         <Route path="assurances" element={<AdminAssurances />} />
@@ -102,6 +117,7 @@ const AppRoutes = () => {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 };
 

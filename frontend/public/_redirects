@@ -1,0 +1,4 @@
+# Réécriture SPA pour Cloudflare Pages et Netlify : toute URL inconnue rend
+# index.html, sinon un rechargement sur /admin/opticiens renverrait un 404.
+# L'équivalent Vercel est la section "rewrites" de vercel.json.
+/*    /index.html   200

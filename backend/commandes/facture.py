@@ -4,6 +4,8 @@ Génération de la facture PDF d'une commande (reportlab).
 Point d'entrée : generer_facture_pdf(commande) -> bytes
 """
 from io import BytesIO
+from xml.sax.saxutils import escape
+
 from django.utils.timezone import localtime
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
@@ -52,6 +54,18 @@ def _prix(montant):
     return f"{int(montant or 0):,} F CFA".replace(",", ".")
 
 
+def _txt(valeur):
+    """Échappe une donnée utilisateur avant interpolation dans un Paragraph.
+
+    ReportLab interprète un mini-langage de balises dans le texte des Paragraph.
+    Les données interpolées ici (nom et adresse de boutique, nom et email du
+    client, adresse de livraison, marque et nom de la monture) sont saisies par
+    des utilisateurs : sans échappement, un simple « & » ou « < » fait échouer la
+    génération, et des balises `<font>` / `<b>` sont interprétées.
+    """
+    return escape(str(valeur or ''))
+
+
 def _nom_client(commande):
     u = commande.client
     return u.get_full_name() or u.username
@@ -92,13 +106,13 @@ def generer_facture_pdf(commande) -> bytes:
     # ── En-tête : marque à gauche, "FACTURE" + réf à droite ──
     vendeur_txt = "<b>Lunette Pro</b><br/>La vision au bout des doigts"
     if boutique:
-        vendeur_txt = f"<b>{boutique.nom}</b>"
+        vendeur_txt = f"<b>{_txt(boutique.nom)}</b>"
         if boutique.adresse:
-            vendeur_txt += f"<br/>{boutique.adresse}"
+            vendeur_txt += f"<br/>{_txt(boutique.adresse)}"
         if boutique.telephone:
-            vendeur_txt += f"<br/>Tél : {boutique.telephone}"
+            vendeur_txt += f"<br/>Tél : {_txt(boutique.telephone)}"
         if boutique.email:
-            vendeur_txt += f"<br/>{boutique.email}"
+            vendeur_txt += f"<br/>{_txt(boutique.email)}"
 
     entete = Table([[
         Paragraph(vendeur_txt, style_normal),
@@ -116,13 +130,13 @@ def generer_facture_pdf(commande) -> bytes:
         Paragraph("DÉTAILS", style_h),
     ], [
         Paragraph(
-            f"{_nom_client(commande)}<br/>"
-            f"{commande.client.email or ''}<br/>"
-            f"{commande.adresse_livraison or ''}",
+            f"{_txt(_nom_client(commande))}<br/>"
+            f"{_txt(commande.client.email)}<br/>"
+            f"{_txt(commande.adresse_livraison)}",
             style_normal),
         Paragraph(
             f"Date : {date}<br/>"
-            f"Paiement : {METHODE_PAIEMENT_LABELS.get(commande.methode_paiement, commande.methode_paiement or '—')}<br/>"
+            f"Paiement : {_txt(METHODE_PAIEMENT_LABELS.get(commande.methode_paiement, commande.methode_paiement or '—'))}<br/>"
             f"Type : {'Lunettes de vue' if commande.type_commande == 'vue' else 'Style / Solaire'}",
             style_normal),
     ]], colWidths=[87 * mm, 87 * mm])
@@ -140,16 +154,16 @@ def generer_facture_pdf(commande) -> bytes:
     prix_monture = float(commande.prix_total) - prix_verres
 
     lignes.append([
-        Paragraph(f"<b>{monture.marque} — {monture.nom}</b>", style_normal),
-        Paragraph(f"{monture.forme} · {monture.couleur}", style_petit),
+        Paragraph(f"<b>{_txt(monture.marque)} — {_txt(monture.nom)}</b>", style_normal),
+        Paragraph(f"{_txt(monture.forme)} · {_txt(monture.couleur)}", style_petit),
         _prix(prix_monture),
     ])
 
     if commande.type_verre:
         détail_verre = OPTIONS_VERRES_LABELS
-        opts = ", ".join(détail_verre.get(o, o) for o in (commande.options_verres or []))
+        opts = ", ".join(_txt(détail_verre.get(o, o)) for o in (commande.options_verres or []))
         lignes.append([
-            Paragraph(TYPES_VERRES_LABELS.get(commande.type_verre, commande.type_verre), style_normal),
+            Paragraph(_txt(TYPES_VERRES_LABELS.get(commande.type_verre, commande.type_verre)), style_normal),
             Paragraph(opts or "—", style_petit),
             _prix(prix_verres),
         ])

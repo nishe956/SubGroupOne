@@ -1,2 +1,46 @@
+# Secrets — ne JAMAIS committer
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.pem
+*.key
+api_groq
+backups/
+*.gpg
+
+# Rapport d'audit : contient l'emplacement de secrets réels
+AUDIT_SECURITE.md
+
+# Environnements virtuels Python
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+dist/
+
+# Médias et fichiers générés
+media/
+staticfiles/
+logs/
+*.log
+*.sqlite3
+
+# Divers
 *.deb
 .claude/settings.local.json
+.DS_Store
+.idea/
+
+# Captures d'écran : contiennent souvent des URL de session, des jetons
+# ou des données personnelles visibles à l'écran.
+*.png
+*.jpg
+*.jpeg
+!icons/*.png
+!frontend/src/assets/**/*.png

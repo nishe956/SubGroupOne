@@ -12,6 +12,7 @@ if [ ! -f certs/localhost.pem ] || [ ! -f certs/localhost-key.pem ]; then
   echo "Génération des certificats backend (mkcert)..."
   mkcert -cert-file certs/localhost.pem -key-file certs/localhost-key.pem localhost 127.0.0.1 ::1
 fi
+source .venv/bin/activate
 python3 manage.py runserver 127.0.0.1:8001 &
 python3 dev_https_proxy.py &
 

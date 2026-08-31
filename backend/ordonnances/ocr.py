@@ -54,7 +54,9 @@ Notes :
 
     try:
         response = client.chat.completions.create(
-            model='meta-llama/llama-4-scout-17b-16e-instruct',
+            model='qwen/qwen3.6-27b',
+            # Le modèle émet sinon un bloc <think> avant le JSON.
+            reasoning_effort='none',
             messages=[
                 {
                     'role': 'user',

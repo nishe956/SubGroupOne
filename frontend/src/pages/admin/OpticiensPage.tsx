@@ -1,32 +1,33 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, MapPin, Phone, Mail, Trash2, CheckCircle, XCircle, Clock, Check, X, User as UserIcon } from 'lucide-react';
-import api, { mediaUrl } from '@/lib/api';
+import { Building2, MapPin, Phone, Mail, Trash2, Clock, Check, X } from 'lucide-react';
+import api, { mediaUrl, listeDepuis } from '@/lib/api';
 import toast from 'react-hot-toast';
+import { Carte, Badge, EnTetePage, Avatar } from '@/components/admin';
 
 export default function AdminOpticiens() {
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-opticiens'],
-    queryFn: () => api.get('/boutiques/').then(r => r.data),
+    queryFn: () => api.get('/boutiques/').then(r => listeDepuis(r.data)),
   });
 
   const { data: usersData } = useQuery({
     queryKey: ['opticiens-users'],
-    queryFn: () => api.get('/users/opticiens/').then(r => r.data),
+    queryFn: () => api.get('/users/opticiens/').then(r => listeDepuis(r.data)),
   });
 
   const { data: enAttenteData } = useQuery({
     queryKey: ['opticiens-en-attente'],
-    queryFn: () => api.get('/users/opticiens/en-attente/').then(r => r.data),
+    queryFn: () => api.get('/users/opticiens/en-attente/').then(r => listeDepuis(r.data)),
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const boutiques: any[] = Array.isArray(data) ? data : (data?.results || []);
+  const boutiques: any[] = data ?? [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const opticienUsers: any[] = Array.isArray(usersData) ? usersData : (usersData?.results || []);
+  const opticienUsers: any[] = usersData ?? [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const enAttente: any[] = Array.isArray(enAttenteData) ? enAttenteData : (enAttenteData?.results || []);
+  const enAttente: any[] = enAttenteData ?? [];
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/users/${id}/`),
@@ -54,134 +55,119 @@ export default function AdminOpticiens() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-100">Gestion des opticiens</h1>
-        <span className="text-sm text-gray-400">{boutiques.length} opticien{boutiques.length !== 1 ? 's' : ''}</span>
-      </div>
+      <EnTetePage
+        titre="Opticiens"
+        sousTitre={`${boutiques.length} boutique${boutiques.length !== 1 ? 's' : ''} sur le réseau`}
+      />
 
-      {/* Demandes en attente de validation */}
+      {/* Demandes en attente : placées avant la liste, ce sont les seules
+          lignes de cette page qui appellent une décision. */}
       {enAttente.length > 0 && (
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-3">
-            <Clock className="w-5 h-5 text-amber-400" />
-            <h2 className="font-semibold text-gray-100">Demandes en attente</h2>
-            <span className="badge bg-amber-900 text-amber-300 text-xs">{enAttente.length}</span>
+        <Carte className="mb-6 border-amber-200 bg-amber-50">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="w-4 h-4 text-amber-600" />
+            <h2 className="font-semibold text-gray-900">Demandes en attente</h2>
+            <Badge ton="attente">{enAttente.length}</Badge>
           </div>
-          <div className="grid gap-3">
+          <ul className="space-y-3">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {enAttente.map((u: any) => (
-              <div key={u.id} className="bg-gray-800 border border-amber-900/50 rounded-2xl p-4 flex items-center gap-4">
-                <div className="w-11 h-11 bg-amber-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <UserIcon className="w-5 h-5 text-amber-300" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-white">{u.first_name} {u.last_name} <span className="text-gray-500 font-normal">@{u.username}</span></div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-gray-400 mt-0.5">
+              <li key={u.id} className="bg-white rounded-xl border border-amber-100 p-4 flex flex-wrap items-center gap-4">
+                <Avatar nom={`${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || u.username} taille="lg" />
+                <div className="flex-1 min-w-[180px]">
+                  <div className="font-semibold text-gray-900">
+                    {u.first_name} {u.last_name}
+                    <span className="text-gray-400 font-normal ml-2">@{u.username}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-gray-500 mt-0.5">
                     {u.email && <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{u.email}</span>}
                     {u.telephone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{u.telephone}</span>}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => validerMutation.mutate({ id: u.id, action: 'approuver' })}
                     disabled={validerMutation.isPending}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
                   >
                     <Check className="w-4 h-4" /> Accepter
                   </button>
                   <button
                     onClick={() => validerMutation.mutate({ id: u.id, action: 'rejeter' })}
                     disabled={validerMutation.isPending}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-red-900/40 text-red-300 text-sm font-medium transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 hover:bg-red-50 hover:border-red-200 text-gray-600 hover:text-red-600 text-sm font-medium transition-colors disabled:opacity-50"
                   >
                     <X className="w-4 h-4" /> Refuser
                   </button>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </Carte>
       )}
 
       {isLoading ? (
-        <div className="grid gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-28 bg-gray-700 animate-pulse rounded-2xl" />)}</div>
-      ) : boutiques.length === 0 ? (
-        <div className="text-center py-20 text-gray-400">
-          <Building2 className="w-12 h-12 mx-auto mb-3 opacity-40" />
-          <p>Aucun opticien enregistré</p>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-44 bg-white border border-gray-100 rounded-2xl animate-pulse" />)}
         </div>
+      ) : boutiques.length === 0 ? (
+        <Carte className="text-center py-20">
+          <Building2 className="w-10 h-10 mx-auto mb-3 text-gray-300" strokeWidth={1.5} />
+          <div className="font-medium text-gray-700">Aucun opticien enregistré</div>
+          <p className="text-sm text-gray-400 mt-1">Les boutiques validées apparaîtront ici.</p>
+        </Carte>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {boutiques.map((b: any) => {
-            const user = opticienUsers.find((u: any) => u.id === b.opticien);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const proprietaire = opticienUsers.find((u: any) => u.id === b.opticien);
             const logoSrc = b.logo ? mediaUrl(b.logo) : null;
 
             return (
-              <div key={b.id} className="bg-gray-800 rounded-2xl p-5 flex items-start gap-4">
-                {/* Logo */}
-                <div className="w-14 h-14 bg-gray-700 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
-                  {logoSrc
-                    ? <img src={logoSrc} alt={b.nom} loading="lazy" className="w-full h-full object-cover" />
-                    : <Building2 className="w-7 h-7 text-gray-400" />
-                  }
+              <Carte key={b.id} className="flex flex-col">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {logoSrc
+                      ? <img src={logoSrc} alt={b.nom} loading="lazy" className="w-full h-full object-cover" />
+                      : <Building2 className="w-6 h-6 text-gray-400" strokeWidth={1.5} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-gray-900 truncate">{b.nom}</div>
+                    {proprietaire && (
+                      <div className="text-xs text-gray-400 truncate">
+                        {proprietaire.first_name} {proprietaire.last_name} · @{proprietaire.username}
+                      </div>
+                    )}
+                  </div>
+                  <Badge ton={b.actif ? 'succes' : 'neutre'}>{b.actif ? 'Actif' : 'Inactif'}</Badge>
                 </div>
 
-                {/* Infos */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="font-semibold text-white text-lg">{b.nom}</span>
-                    <span className={`badge text-xs ${b.actif ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
-                      {b.actif ? <><CheckCircle className="w-3 h-3 inline mr-1" />Actif</> : <><XCircle className="w-3 h-3 inline mr-1" />Inactif</>}
-                    </span>
-                  </div>
+                <ul className="space-y-1.5 text-sm text-gray-500 flex-1">
+                  {b.adresse && <li className="flex items-start gap-2"><MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />{b.adresse}</li>}
+                  {b.telephone && <li className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 flex-shrink-0" />{b.telephone}</li>}
+                  {b.email && <li className="flex items-center gap-2 min-w-0"><Mail className="w-3.5 h-3.5 flex-shrink-0" /><span className="truncate">{b.email}</span></li>}
+                </ul>
 
-                  {/* Propriétaire */}
-                  {user && (
-                    <div className="text-sm text-primary-400 mb-2">
-                      👤 {user.first_name} {user.last_name}
-                      <span className="text-gray-500 ml-2">@{user.username}</span>
-                    </div>
-                  )}
+                {b.slogan && <p className="text-xs text-gray-400 italic mt-3">« {b.slogan} »</p>}
 
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400">
-                    {b.adresse && (
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5" /> {b.adresse}
-                      </span>
-                    )}
-                    {b.telephone && (
-                      <span className="flex items-center gap-1">
-                        <Phone className="w-3.5 h-3.5" /> {b.telephone}
-                      </span>
-                    )}
-                    {b.email && (
-                      <span className="flex items-center gap-1">
-                        <Mail className="w-3.5 h-3.5" /> {b.email}
-                      </span>
-                    )}
-                  </div>
-
-                  {b.slogan && <p className="text-xs text-gray-500 italic mt-1">"{b.slogan}"</p>}
-                </div>
-
-                {/* Actions */}
-                <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                  <div className="text-xs text-gray-500">
-                    {new Date(b.date_creation).toLocaleDateString('fr-FR')}
-                  </div>
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+                  <span className="text-xs text-gray-400">
+                    Inscrite le {new Date(b.date_creation).toLocaleDateString('fr-FR')}
+                  </span>
                   {b.opticien && (
                     <button
                       onClick={() => handleDelete(b.opticien, b.nom)}
                       disabled={deleteMutation.isPending}
-                      className="p-1.5 rounded-lg text-red-400 hover:bg-red-900/30 transition-colors"
                       title="Supprimer cet opticien"
+                      aria-label={`Supprimer l'opticien ${b.nom}`}
+                      className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                 </div>
-              </div>
+              </Carte>
             );
           })}
         </div>

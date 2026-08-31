@@ -1,0 +1,17 @@
+# En-têtes de sécurité pour Cloudflare Pages et Netlify.
+#
+# `frontend/vercel.json` fait le même travail sur Vercel ; les deux fichiers
+# doivent rester synchronisés. Ce fichier est copié tel quel dans dist/ par Vite
+# et ignoré par Vercel — sa présence ne gêne aucun des trois hébergeurs.
+#
+# `connect-src` liste les seules origines que le SPA peut appeler : l'API sur
+# Render, les médias sur R2, Google pour OAuth et Nominatim pour le géocodage.
+# Remplacer les jokers par les domaines réels resserre encore la politique.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://accounts.google.com https://nominatim.openstreetmap.org https://*.onrender.com https://*.r2.dev; frame-src https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(self), microphone=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin-allow-popups

@@ -13,7 +13,9 @@ class BoutiqueSerializer(serializers.ModelSerializer):
             'adresse', 'telephone', 'email',
             'logo', 'actif', 'date_creation',
         ]
-        read_only_fields = ['id', 'opticien', 'opticien_nom', 'date_creation']
+        # `actif` relève de la modération (masquage d'une boutique rejetée),
+        # pas de l'opticien : laissé modifiable, il permettait de se réafficher.
+        read_only_fields = ['id', 'opticien', 'opticien_nom', 'date_creation', 'actif']
 
     def get_opticien_nom(self, obj):
         if obj.opticien:

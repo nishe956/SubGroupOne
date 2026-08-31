@@ -28,6 +28,12 @@ class User(AbstractUser):
         choices=STATUT_VALIDATION_CHOICES,
         default='approuve',
     )
+    # Tout jeton émis AVANT cette date est refusé. Mis à jour lors d'un
+    # changement de mot de passe, d'un rejet de compte ou d'une désactivation :
+    # blacklister les refresh tokens ne suffit pas, les access tokens déjà émis
+    # resteraient sinon valides jusqu'à leur expiration naturelle.
+    tokens_valides_apres = models.DateTimeField(null=True, blank=True)
+
     telephone = models.CharField(max_length=20, blank=True)
     adresse = models.TextField(blank=True)
     date_naissance = models.DateField(null=True, blank=True)

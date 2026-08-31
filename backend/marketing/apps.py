@@ -7,13 +7,19 @@ class MarketingConfig(AppConfig):
     name = 'marketing'
 
     def ready(self):
-        # Ne pas démarrer le scheduler lors des commandes manage.py (migrate, etc.)
-        # ni lors des tests, ni dans le processus de rechargement automatique de runserver
-        if 'runserver' not in sys.argv and 'gunicorn' not in sys.argv[0:1]:
-            return
-        if sys.argv[1:2] == ['runserver'] and '--noreload' not in sys.argv:
-            import os
-            if os.environ.get('RUN_MAIN') != 'true':
+        import os
+
+        # L'ordonnanceur ne doit tourner que dans UN process. Il était démarré
+        # dans chaque worker gunicorn : deux ordonnanceurs concurrents sur le
+        # même jobstore peuvent déclencher des envois de SMS en double, facturés.
+        # En production, activer explicitement RUN_SCHEDULER=1 sur une seule
+        # instance (ou, mieux, utiliser le cron de la plateforme d'hébergement).
+        if os.environ.get('RUN_SCHEDULER', '').lower() not in ('1', 'true'):
+            if 'runserver' not in sys.argv:
+                return
+            # En développement, runserver relance un second process : ne démarrer
+            # que dans celui qui sert réellement les requêtes.
+            if '--noreload' not in sys.argv and os.environ.get('RUN_MAIN') != 'true':
                 return
 
         self._demarrer_scheduler()

@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     PasserCommande, ListeCommandes, DetailCommande,
-    GererCommande, AnnulerCommande, InitierPaiement, ConfirmerPaiement,
+    GererCommande, AnnulerCommande, InitierPaiement,
 )
 
 urlpatterns = [
@@ -11,5 +11,6 @@ urlpatterns = [
     path('<int:pk>/gerer/',           GererCommande.as_view(),     name='gerer-commande'),
     path('<int:pk>/annuler/',         AnnulerCommande.as_view(),   name='annuler-commande'),
     path('<int:pk>/paiement/',        InitierPaiement.as_view(),   name='initier-paiement'),
-    path('<int:pk>/paiement/confirmer/', ConfirmerPaiement.as_view(), name='confirmer-paiement'),
+    # `paiement/confirmer/` supprimée : elle validait une commande sans aucune
+    # vérification auprès d'un prestataire de paiement (voir commandes/views.py).
 ]

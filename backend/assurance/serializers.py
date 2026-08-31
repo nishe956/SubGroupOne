@@ -24,4 +24,9 @@ class DemandeRemboursementSerializer(serializers.ModelSerializer):
             'montant_total', 'montant_rembourse', 'montant_patient',
             'statut', 'date_soumission', 'date_traitement', 'notes',
         ]
-        read_only_fields = ['id', 'client', 'montant_rembourse', 'montant_patient', 'date_soumission']
+        # `montant_total` est en lecture seule : il est repris du prix réel de la
+        # commande. Modifiable, il permettait de réclamer n'importe quel montant.
+        read_only_fields = [
+            'id', 'client', 'montant_total', 'montant_rembourse', 'montant_patient',
+            'statut', 'date_soumission', 'date_traitement', 'notes',
+        ]

@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Heart, MessageCircle, Plus, Send, Image, X } from 'lucide-react';
-import api, { mediaUrl } from '@/lib/api';
+import api, { mediaUrl, listeDepuis } from '@/lib/api';
 import { Publication } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -17,10 +17,10 @@ export default function PublicationsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['publications'],
-    queryFn: () => api.get('/publications/').then(r => r.data),
+    queryFn: () => api.get('/publications/?page_size=100').then(r => listeDepuis<Publication>(r.data)),
   });
 
-  const publications: Publication[] = data?.results || data || [];
+  const publications: Publication[] = data ?? [];
 
   const createMutation = useMutation({
     mutationFn: () => {

@@ -37,7 +37,13 @@ class ReverseProxyHandler(BaseHTTPRequestHandler):
             for k, v in self.headers.items()
             if k.lower() not in HOP_BY_HOP_HEADERS and k.lower() != "host"
         }
-        outgoing_headers["Host"] = f"{TARGET_HOST}:{TARGET_PORT}"
+        # Préserve le Host original (ex: localhost:8000) au lieu de le remplacer par
+        # celui du backend : Django s'en sert pour construire les URLs absolues des
+        # médias (request.build_absolute_uri). Sans ça, les images renvoyées par l'API
+        # pointent vers http://127.0.0.1:8001/... au lieu de https://localhost:8000/...,
+        # ce qui est bloqué par le navigateur (mixed content) sur une page servie en HTTPS.
+        outgoing_headers["Host"] = self.headers.get("Host", f"{TARGET_HOST}:{TARGET_PORT}")
+        outgoing_headers["X-Forwarded-Proto"] = "https"
 
         conn = http.client.HTTPConnection(TARGET_HOST, TARGET_PORT, timeout=120)
         try:

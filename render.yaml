@@ -1,0 +1,129 @@
+# Blueprint Render — API Django d'OptiLunette.
+#
+# Utilisation : Render > Blueprints > New Blueprint Instance, pointer sur ce
+# dépôt. Render lit ce fichier et demande la valeur de chaque variable marquée
+# `sync: false` (ce sont les secrets : ils ne doivent pas vivre dans le dépôt).
+#
+# Offre gratuite : 512 Mo de RAM, mise en veille après 15 minutes sans trafic.
+# Le premier appel après une veille prend 30 à 60 secondes — c'est attendu.
+services:
+  - type: web
+    name: lunette-api
+    runtime: docker
+    plan: free
+    # Francfort est la région gratuite la plus proche de l'Afrique de l'Ouest.
+    region: frankfurt
+    # Chemins relatifs à la racine du dépôt (pas de rootDir) : c'est la seule
+    # interprétation non ambiguë en monorepo. Le contexte pointe sur backend/,
+    # donc Docker y trouve bien le .dockerignore.
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # Sonde court-circuitée en tête de MIDDLEWARE : elle ne dépend ni de
+    # ALLOWED_HOSTS, ni de la redirection HTTPS, ni du quota anonyme de DRF.
+    healthCheckPath: /healthz/
+    autoDeploy: false
+    # Branche explicite : sans elle, Render déploie la branche par défaut du
+    # dépôt (`main`), qui a divergé de `master` et ne porte pas ce code.
+    branch: master
+
+    envVars:
+      - key: DEBUG
+        value: "False"
+
+      # Un seul worker : deux processus Django dépassent les 512 Mo dès qu'un
+      # essai virtuel charge MediaPipe.
+      - key: GUNICORN_WORKERS
+        value: "1"
+
+      # Render termine le TLS en amont. Sans TRUST_PROXY, Django ne voit que du
+      # HTTP et la redirection HTTPS boucle indéfiniment.
+      - key: TRUST_PROXY
+        value: "True"
+      - key: NUM_PROXIES
+        value: "1"
+
+      # Les migrations se lancent à la main depuis le Shell Render, pas au
+      # démarrage du conteneur (voir DEPLOIEMENT.md).
+      - key: RUN_MIGRATIONS
+        value: "0"
+      # L'ordonnanceur interne ne peut pas fonctionner sur une instance mise en
+      # veille : la planification passe par un cron externe.
+      - key: RUN_SCHEDULER
+        value: "0"
+
+      - key: JWT_ACCESS_MINUTES
+        value: "15"
+      - key: JWT_REFRESH_DAYS
+        value: "1"
+      - key: DB_SSLMODE
+        value: "require"
+      - key: DB_PORT
+        value: "5432"
+
+      # ── Secrets : Render les demande au moment du déploiement ──────────────
+      # SECRET_KEY doit faire au moins 50 caractères et ne contenir aucun des
+      # motifs « insecure / change / default » — sinon l'application refuse de
+      # démarrer. Générer avec :
+      #   python -c "from django.core.management.utils import get_random_secret_key as g; print(g()+g())"
+      - key: SECRET_KEY
+        sync: false
+
+      # Domaine Render de CE service, ex. lunette-api.onrender.com
+      - key: ALLOWED_HOSTS
+        sync: false
+      # URL du frontend Vercel, ex. https://optilunette.vercel.app
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
+      # PostgreSQL — Neon (offre gratuite)
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_HOST
+        sync: false
+
+      # Cache partagé — obligatoire : sans lui l'application refuse de démarrer,
+      # car les compteurs anti-bruteforce et le mode maintenance en dépendent.
+      - key: REDIS_URL
+        sync: false
+
+      # Stockage des médias — Cloudflare R2. Deux buckets obligatoires : les
+      # ordonnances sont des données de santé et ne vont jamais dans le public.
+      - key: AWS_STORAGE_BUCKET_NAME
+        sync: false
+      - key: AWS_PRIVATE_BUCKET_NAME
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_ENDPOINT_URL
+        sync: false
+      - key: AWS_S3_CUSTOM_DOMAIN
+        sync: false
+
+      # Chemin d'administration non devinable, ex. gestion-interne-8f3a/
+      - key: ADMIN_URL
+        sync: false
+
+      # ── Optionnel : l'application démarre sans ces valeurs ─────────────────
+      # Sans EMAIL_HOST, les emails partent dans les logs au lieu d'être envoyés.
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false

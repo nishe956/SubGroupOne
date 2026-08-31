@@ -28,7 +28,9 @@ class PublicationSerializer(serializers.ModelSerializer):
             'auteur', 'auteur_nom', 'date_creation', 'publie', 'vues',
             'likes', 'liked', 'commentaires_count', 'commentaires',
         ]
-        read_only_fields = ['auteur', 'date_creation', 'vues']
+        # `publie` est piloté par la vue (validation admin), pas par le client :
+        # laissé modifiable, un opticien publiait directement sur le site public.
+        read_only_fields = ['auteur', 'date_creation', 'vues', 'publie']
 
     def get_auteur_nom(self, obj):
         if obj.auteur:

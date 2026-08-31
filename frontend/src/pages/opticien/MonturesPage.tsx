@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, X, AlertTriangle, Package } from 'lucide-react';
-import api, { mediaUrl, formatCFA } from '@/lib/api';
+import api, { mediaUrl, formatCFA, listeDepuis } from '@/lib/api';
 import { Monture } from '@/types';
 import toast from 'react-hot-toast';
 
@@ -27,7 +27,7 @@ export default function OpticienMontures() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['opticien-montures'],
-    queryFn: () => api.get('/montures/?mes_montures=true').then(r => r.data),
+    queryFn: () => api.get('/montures/?mes_montures=true&page_size=100').then(r => listeDepuis<Monture>(r.data)),
   });
 
   const { data: alertesData } = useQuery({
@@ -35,7 +35,7 @@ export default function OpticienMontures() {
     queryFn: () => api.get('/stock/alertes/').then(r => r.data),
   });
 
-  const montures: Monture[] = Array.isArray(data) ? data : (data?.results || []);
+  const montures: Monture[] = data ?? [];
   const alertes = Array.isArray(alertesData) ? alertesData : (alertesData?.results || alertesData?.alertes || []);
 
   const createMutation = useMutation({
@@ -229,7 +229,7 @@ export default function OpticienMontures() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {montures.map(m => {
-                const imgSrc = m.image_principale ? mediaUrl(m.image_principale) : null;
+                const imgSrc = m.image ? mediaUrl(m.image) : m.image_principale ? mediaUrl(m.image_principale) : null;
                 return (
                   <tr key={m.id} className={`hover:bg-gray-50 ${m.stock <= 3 && m.stock > 0 ? 'bg-orange-50' : m.stock === 0 ? 'bg-red-50' : ''}`}>
                     <td className="px-4 py-3">
@@ -251,8 +251,8 @@ export default function OpticienMontures() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`badge ${m.actif ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {m.actif ? 'Actif' : 'Inactif'}
+                      <span className={`badge ${m.disponible ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {m.disponible ? 'Actif' : 'Inactif'}
                       </span>
                     </td>
                     <td className="px-4 py-3">

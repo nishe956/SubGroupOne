@@ -1,8 +1,50 @@
+# Contexte de build. Sans ces exclusions, Docker envoyait ~770 Mo au démon
+# (dont 694 Mo de .venv), ce qui fait dépasser le temps de build alloué par les
+# offres gratuites — et copie des secrets et des données personnelles dans
+# l'image finale.
+
+# Environnements virtuels — le point initial n'était pas couvert par « venv/ »
+.venv/
 venv/
 env/
+ENV/
+
+# Caches Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Secrets et certificats
+.env
+.env.*
+!.env.production.example
+certs/
+*.pem
+*.key
+*.gpg
+
+# Données locales : les médias vivent sur R2 en production, la base sur Neon.
 media/
 staticfiles/
-.env
 *.sqlite3
+backups/
+logs/
+*.log
+
+# Historique Git (130 Mo) : inutile dans l'image
+.git/
+.gitignore
+
+# Outillage de développement, jamais exécuté en production
+dev_https_proxy.py
+test_essai.py
+test_ocr.py
+setup.py
+tests/
+Arial.ttf
+
+# Documentation
+*.md

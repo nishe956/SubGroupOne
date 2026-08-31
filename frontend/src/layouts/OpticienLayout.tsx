@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Eye, LayoutDashboard, Glasses, ShoppingBag, Store, TrendingUp, LogOut, Menu, X } from 'lucide-react';
+import { Eye, LayoutDashboard, Glasses, ShoppingBag, Store, TrendingUp, ChartColumn, LogOut, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 export default function OpticienLayout() {
@@ -10,6 +10,7 @@ export default function OpticienLayout() {
 
   const navItems = [
     { to: '/opticien', icon: LayoutDashboard, label: 'Tableau de bord', end: true },
+    { to: '/opticien/statistiques', icon: ChartColumn, label: 'Statistiques' },
     { to: '/opticien/montures', icon: Glasses, label: 'Mes montures' },
     { to: '/opticien/commandes', icon: ShoppingBag, label: 'Commandes' },
     { to: '/opticien/boutique', icon: Store, label: 'Ma boutique' },

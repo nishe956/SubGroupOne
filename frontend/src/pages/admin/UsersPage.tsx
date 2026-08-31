@@ -1,23 +1,37 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserX, UserCheck, Search, Trash2 } from 'lucide-react';
-import api from '@/lib/api';
+import api, { listeDepuis } from '@/lib/api';
 import { User } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { Badge, Tableau, Colonne, EnTetePage, Avatar, Ton } from '@/components/admin';
+
+const ROLES: Record<string, { libelle: string; ton: Ton }> = {
+  admin:    { libelle: 'Admin',    ton: 'danger' },
+  opticien: { libelle: 'Opticien', ton: 'accent' },
+  client:   { libelle: 'Client',   ton: 'info'   },
+};
 
 export default function AdminUsers() {
   const qc = useQueryClient();
   const { user: me } = useAuth();
+  const [params] = useSearchParams();
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
 
+  // La barre de recherche de l'en-tête dépose sa requête dans l'URL : on la
+  // reprend telle quelle pour que le lien reste partageable et rechargeable.
+  const requeteUrl = params.get('q') ?? '';
+  useEffect(() => { if (requeteUrl) setSearch(requeteUrl); }, [requeteUrl]);
+
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users', roleFilter],
-    queryFn: () => api.get('/users/liste/', { params: { role: roleFilter || undefined } }).then(r => r.data),
+    queryFn: () => api.get('/users/liste/', { params: { role: roleFilter || undefined, page_size: 100 } }).then(r => listeDepuis<User>(r.data)),
   });
 
-  const users: User[] = data?.results || data || [];
+  const users: User[] = data ?? [];
 
   const toggleMutation = useMutation({
     mutationFn: (u: User) => api.patch(`/users/${u.id}/`, { is_active: !u.is_active }),
@@ -43,23 +57,86 @@ export default function AdminUsers() {
     `${u.first_name} ${u.last_name} ${u.username} ${u.email}`.toLowerCase().includes(search.toLowerCase())
   );
 
+  const colonnes: Colonne<User>[] = [
+    {
+      cle: 'utilisateur', libelle: 'Utilisateur',
+      rendu: u => {
+        const nom = `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim();
+        return (
+          <div className="flex items-center gap-3">
+            <Avatar nom={nom || u.username} taille="sm" />
+            <div className="min-w-0">
+              <div className="font-medium text-gray-900 truncate">{nom || u.username}</div>
+              <div className="text-xs text-gray-400 truncate">@{u.username}</div>
+            </div>
+          </div>
+        );
+      },
+    },
+    { cle: 'email', libelle: 'Email', rendu: u => <span className="text-gray-500">{u.email || '—'}</span> },
+    {
+      cle: 'role', libelle: 'Rôle',
+      rendu: u => {
+        const r = ROLES[u.role] ?? { libelle: u.role, ton: 'neutre' as Ton };
+        return <Badge ton={r.ton}>{r.libelle}</Badge>;
+      },
+    },
+    {
+      cle: 'statut', libelle: 'Statut',
+      rendu: u => <Badge ton={u.is_active ? 'succes' : 'neutre'}>{u.is_active ? 'Actif' : 'Inactif'}</Badge>,
+    },
+    {
+      cle: 'actions', libelle: 'Actions', align: 'right', className: 'w-28',
+      rendu: u => (
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={() => toggleMutation.mutate(u)}
+            disabled={toggleMutation.isPending}
+            title={u.is_active ? 'Désactiver le compte' : 'Activer le compte'}
+            aria-label={u.is_active ? 'Désactiver le compte' : 'Activer le compte'}
+            className={`p-2 rounded-lg transition-colors ${u.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+          >
+            {u.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+          </button>
+          {u.id !== me?.id && (
+            <button
+              onClick={() => handleDelete(u)}
+              disabled={deleteMutation.isPending}
+              title="Supprimer"
+              aria-label="Supprimer l'utilisateur"
+              className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-100 mb-6">Gestion des utilisateurs</h1>
-      <div className="bg-gray-800 rounded-2xl p-4 mb-4 flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <EnTetePage
+        titre="Utilisateurs"
+        sousTitre={`${filtered.length} compte${filtered.length > 1 ? 's' : ''} ${search || roleFilter ? 'correspondant au filtre' : 'sur la plateforme'}`}
+      />
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-4 mb-4 flex gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full bg-gray-700 text-white rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none border border-gray-600 focus:border-primary-500"
-            placeholder="Rechercher..."
+            aria-label="Rechercher un utilisateur"
+            className="champ-admin pl-9"
+            placeholder="Nom, identifiant ou email..."
           />
         </div>
         <select
           value={roleFilter}
           onChange={e => setRoleFilter(e.target.value)}
-          className="bg-gray-700 text-white rounded-xl px-3 py-2.5 text-sm outline-none border border-gray-600"
+          aria-label="Filtrer par rôle"
+          className="champ-admin w-auto"
         >
           <option value="">Tous les rôles</option>
           <option value="client">Clients</option>
@@ -68,59 +145,14 @@ export default function AdminUsers() {
         </select>
       </div>
 
-      <div className="bg-gray-800 rounded-2xl overflow-hidden overflow-x-auto">
-        <table className="w-full min-w-[600px]">
-          <thead className="border-b border-gray-700">
-            <tr>
-              {['Utilisateur', 'Email', 'Rôle', 'Statut', 'Actions'].map(h => (
-                <th key={h} className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-4 py-3">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-700">
-            {isLoading ? [...Array(5)].map((_, i) => (
-              <tr key={i}><td colSpan={5} className="px-4 py-3"><div className="h-4 bg-gray-700 animate-pulse rounded" /></td></tr>
-            )) : filtered.map(u => (
-              <tr key={u.id} className="hover:bg-gray-750">
-                <td className="px-4 py-3 text-sm font-medium text-white">{u.first_name} {u.last_name}</td>
-                <td className="px-4 py-3 text-sm text-gray-400">{u.email}</td>
-                <td className="px-4 py-3">
-                  <span className={`badge text-xs ${u.role === 'admin' ? 'bg-red-900 text-red-300' : u.role === 'opticien' ? 'bg-purple-900 text-purple-300' : 'bg-blue-900 text-blue-300'}`}>
-                    {u.role}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`badge ${u.is_active ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
-                    {u.is_active ? 'Actif' : 'Inactif'}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => toggleMutation.mutate(u)}
-                      disabled={toggleMutation.isPending}
-                      title={u.is_active ? 'Désactiver' : 'Activer'}
-                      className={`p-1.5 rounded-lg transition-colors ${u.is_active ? 'text-yellow-400 hover:bg-yellow-900/30' : 'text-green-400 hover:bg-green-900/30'}`}
-                    >
-                      {u.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                    </button>
-                    {u.id !== me?.id && (
-                      <button
-                        onClick={() => handleDelete(u)}
-                        disabled={deleteMutation.isPending}
-                        title="Supprimer"
-                        className="p-1.5 rounded-lg text-red-400 hover:bg-red-900/30 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Tableau
+        colonnes={colonnes}
+        lignes={filtered}
+        cleLigne={u => u.id}
+        chargement={isLoading}
+        parPage={10}
+        vide={{ titre: 'Aucun utilisateur', texte: 'Aucun compte ne correspond à cette recherche.' }}
+      />
     </div>
   );
 }

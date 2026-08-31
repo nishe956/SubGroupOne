@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Package, Search, XCircle } from 'lucide-react';
 import { useState } from 'react';
-import api, { mediaUrl, formatCFA } from '@/lib/api';
+import api, { mediaUrl, formatCFA, listeDepuis } from '@/lib/api';
 import { Commande, StatutCommande } from '@/types';
 import toast from 'react-hot-toast';
 
@@ -31,10 +31,10 @@ export default function CommandesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['commandes'],
-    queryFn: () => api.get('/commandes/').then(r => r.data),
+    queryFn: () => api.get('/commandes/?page_size=100').then(r => listeDepuis<Commande>(r.data)),
   });
 
-  const commandes: Commande[] = data?.results || data || [];
+  const commandes: Commande[] = data ?? [];
 
   const annulerMutation = useMutation({
     mutationFn: (id: number) => api.post(`/commandes/${id}/annuler/`),

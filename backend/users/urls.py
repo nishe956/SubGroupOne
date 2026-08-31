@@ -1,11 +1,11 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, LoginView, LogoutView, ProfilView,
     ChangePasswordView, ListeUtilisateursView, UpdateDeleteUtilisateurView,
     CreerOpticienView, ListeOpticiens, ListeClients,
     OpticiensEnAttenteView, ValiderOpticienView,
     PasswordResetRequestView, PasswordResetConfirmView, GoogleLoginView,
+    RafraichirTokenView,
 )
 from sms_otp.views import EnvoyerOTP, VerifierOTP
 
@@ -27,5 +27,6 @@ urlpatterns = [
     path('opticiens/creer/',      CreerOpticienView.as_view(),       name='creer-opticien'),
     path('clients/',          ListeClients.as_view(),                name='liste-clients'),
     path('<int:pk>/',         UpdateDeleteUtilisateurView.as_view(), name='update-delete-user'),
-    path('token/refresh/',    TokenRefreshView.as_view(),            name='token-refresh'),
+    # Le refresh token est lu dans le cookie httpOnly, jamais dans le corps.
+    path('token/refresh/',    RafraichirTokenView.as_view(),         name='token-refresh'),
 ]

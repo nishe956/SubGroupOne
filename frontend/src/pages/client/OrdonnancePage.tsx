@@ -2,9 +2,10 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Upload, FileText, Eye, ArrowRight, Glasses } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import api, { mediaUrl } from '@/lib/api';
+import api, { listeDepuis, messageErreur } from '@/lib/api';
 import { Ordonnance } from '@/types';
 import { interpreterOrdonnance, ProfilVisuel } from '@/utils/ordonnanceUtils';
+import ImageOrdonnance from '@/components/ImageOrdonnance';
 import toast from 'react-hot-toast';
 
 const COULEURS_PROFIL: Record<string, { bg: string; border: string; text: string; badge: string }> = {
@@ -32,10 +33,10 @@ export default function OrdonnancePage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['ordonnances'],
-    queryFn: () => api.get('/ordonnances/').then(r => r.data),
+    queryFn: () => api.get('/ordonnances/?page_size=100').then(r => listeDepuis<Ordonnance>(r.data)),
   });
 
-  const ordonnances: Ordonnance[] = data?.results || data || [];
+  const ordonnances: Ordonnance[] = data ?? [];
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => {
@@ -48,8 +49,9 @@ export default function OrdonnancePage() {
       qc.invalidateQueries({ queryKey: ['ordonnances'] });
     },
     onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Erreur lors de l'upload";
-      toast.error(msg);
+      // Affiche la raison exacte (format non supporté, fichier trop lourd,
+      // image aux dimensions déraisonnables) plutôt qu'un message générique.
+      toast.error(messageErreur(err, "Erreur lors de l'upload"));
     },
   });
 
@@ -127,14 +129,10 @@ export default function OrdonnancePage() {
             return (
               <div key={o.id} className="card">
                 <div className="flex gap-4">
-                  {o.image && (
-                    <img
-                      src={mediaUrl(o.image)}
-                      alt="Ordonnance"
-                      loading="lazy"
-                      className="w-20 h-20 object-cover rounded-xl flex-shrink-0 border border-gray-100"
-                    />
-                  )}
+                  {/* L'ordonnance est une donnée de santé : elle n'est plus
+                      servie par une URL publique mais par un endpoint
+                      authentifié, d'où le composant dédié. */}
+                  <ImageOrdonnance id={o.id} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <FileText className="w-4 h-4 text-primary-600 flex-shrink-0" />

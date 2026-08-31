@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, X, Shield } from 'lucide-react';
-import api from '@/lib/api';
+import { Plus, X, ShieldCheck } from 'lucide-react';
+import api, { listeDepuis, formatCFA } from '@/lib/api';
 import { CompagnieAssurance } from '@/types';
 import toast from 'react-hot-toast';
+import { Carte, EnTeteCarte, Badge, Tableau, Colonne, EnTetePage } from '@/components/admin';
 
 export default function AdminAssurances() {
   const qc = useQueryClient();
@@ -12,10 +13,10 @@ export default function AdminAssurances() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['compagnies-assurance'],
-    queryFn: () => api.get('/assurance/compagnies/').then(r => r.data),
+    queryFn: () => api.get('/assurance/compagnies/').then(r => listeDepuis<CompagnieAssurance>(r.data)),
   });
 
-  const assurances: CompagnieAssurance[] = data?.results || data || [];
+  const assurances: CompagnieAssurance[] = data ?? [];
 
   const createMutation = useMutation({
     mutationFn: () => api.post('/assurance/compagnies/', {
@@ -32,97 +33,123 @@ export default function AdminAssurances() {
     onError: () => toast.error('Erreur lors de la création'),
   });
 
+  const colonnes: Colonne<CompagnieAssurance>[] = [
+    {
+      cle: 'nom', libelle: 'Compagnie',
+      rendu: a => (
+        <div className="flex items-center gap-3">
+          <span className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+            <ShieldCheck className="w-4 h-4" strokeWidth={1.75} />
+          </span>
+          <span className="font-medium text-gray-900">{a.nom}</span>
+        </div>
+      ),
+    },
+    { cle: 'code', libelle: 'Code', rendu: a => <Badge ton="neutre">{a.code}</Badge> },
+    {
+      cle: 'taux', libelle: 'Prise en charge', align: 'right',
+      rendu: a => <span className="font-semibold text-gray-900 tabular-nums">{a.taux_prise_charge} %</span>,
+    },
+    {
+      cle: 'plafond', libelle: 'Plafond annuel', align: 'right',
+      rendu: a => (
+        <span className="text-gray-500 tabular-nums">
+          {a.plafond_annuel ? formatCFA(a.plafond_annuel) : 'Aucun'}
+        </span>
+      ),
+    },
+    {
+      cle: 'statut', libelle: 'Statut',
+      rendu: a => <Badge ton={a.active ? 'succes' : 'neutre'}>{a.active ? 'Active' : 'Inactive'}</Badge>,
+    },
+  ];
+
+  const formulaireComplet = form.nom && form.code && form.taux_prise_charge;
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-gray-100">Gestion des assurances</h1>
+      <EnTetePage
+        titre="Assurances"
+        sousTitre={`${assurances.length} compagnie${assurances.length > 1 ? 's' : ''} partenaire${assurances.length > 1 ? 's' : ''}`}
+      >
         <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          onClick={() => setShowForm(o => !o)}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+            showForm
+              ? 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              : 'bg-accent-500 hover:bg-accent-600 text-white'
+          }`}
         >
           {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {showForm ? 'Annuler' : 'Ajouter'}
+          {showForm ? 'Annuler' : 'Ajouter une compagnie'}
         </button>
-      </div>
+      </EnTetePage>
 
       {showForm && (
-        <div className="bg-gray-800 rounded-2xl p-5 mb-5">
-          <h2 className="font-semibold text-white mb-4">Nouvelle assurance</h2>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+        <Carte className="mb-4">
+          <EnTeteCarte titre="Nouvelle compagnie" sousTitre="Le code sert d'identifiant court dans les commandes." />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Nom</label>
+              <label htmlFor="assurance-nom" className="label">Nom</label>
               <input
+                id="assurance-nom"
                 value={form.nom}
                 onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded-xl px-4 py-2.5 text-sm outline-none border border-gray-600 focus:border-primary-500"
+                className="champ-admin"
                 placeholder="MGEN"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Code</label>
+              <label htmlFor="assurance-code" className="label">Code</label>
               <input
+                id="assurance-code"
                 value={form.code}
                 onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
-                className="w-full bg-gray-700 text-white rounded-xl px-4 py-2.5 text-sm outline-none border border-gray-600 focus:border-primary-500"
+                className="champ-admin"
                 placeholder="MGEN"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Taux remboursement (%)</label>
+              <label htmlFor="assurance-taux" className="label">Taux de remboursement (%)</label>
               <input
+                id="assurance-taux"
                 type="number"
                 value={form.taux_prise_charge}
                 onChange={e => setForm(f => ({ ...f, taux_prise_charge: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded-xl px-4 py-2.5 text-sm outline-none border border-gray-600 focus:border-primary-500"
+                className="champ-admin"
                 placeholder="70"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Plafond (optionnel)</label>
+              <label htmlFor="assurance-plafond" className="label">Plafond annuel (optionnel)</label>
               <input
+                id="assurance-plafond"
                 type="number"
                 value={form.plafond_annuel}
                 onChange={e => setForm(f => ({ ...f, plafond_annuel: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded-xl px-4 py-2.5 text-sm outline-none border border-gray-600 focus:border-primary-500"
+                className="champ-admin"
                 placeholder="300000"
               />
             </div>
           </div>
           <button
             onClick={() => createMutation.mutate()}
-            disabled={!form.nom || !form.code || !form.taux_prise_charge || createMutation.isPending}
-            className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+            disabled={!formulaireComplet || createMutation.isPending}
+            className="bg-accent-500 hover:bg-accent-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {createMutation.isPending ? 'Création...' : "Créer l'assurance"}
           </button>
-        </div>
+        </Carte>
       )}
 
-      {isLoading ? (
-        <div className="grid gap-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-gray-700 animate-pulse rounded-2xl" />)}</div>
-      ) : (
-        <div className="grid gap-3">
-          {assurances.map(a => (
-            <div key={a.id} className="bg-gray-800 rounded-2xl p-4 flex items-center gap-4">
-              <div className="w-10 h-10 bg-green-900 rounded-xl flex items-center justify-center">
-                <Shield className="w-5 h-5 text-green-400" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-white">{a.nom}</span>
-                  <span className="badge bg-gray-700 text-gray-300 text-xs">{a.code}</span>
-                  <span className={`badge ${a.active ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
-                    {a.active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-                <div className="text-sm text-gray-400">
-                  Taux: {a.taux_prise_charge}%{a.plafond_annuel ? ` · Plafond: ${Number(a.plafond_annuel).toLocaleString('fr-FR')} F CFA` : ''}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <Tableau
+        colonnes={colonnes}
+        lignes={assurances}
+        cleLigne={a => a.id}
+        chargement={isLoading}
+        parPage={10}
+        vide={{ titre: 'Aucune compagnie', texte: 'Ajoutez une compagnie pour activer la prise en charge.' }}
+      />
     </div>
   );
 }

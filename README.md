@@ -297,10 +297,17 @@ pip install -r requirements.txt
 
 ### 5.5 Créer le fichier `.env`
 
-Dans le dossier `SubGroupOne-django-backend/`, crée un fichier nommé `.env` (sans extension) avec ce contenu :
+Dans le dossier `backend/`, crée un fichier nommé `.env` (sans extension).
+
+Génère d'abord une clé secrète — l'application refuse de démarrer sans, et
+rejette les clés de démonstration dès que `DEBUG=False` :
+
+```cmd
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
 
 ```env
-SECRET_KEY=remplace-par-une-longue-cle-aleatoire
+SECRET_KEY=colle-ici-la-cle-generee-ci-dessus
 DEBUG=True
 
 DB_NAME=lunettes_db
@@ -310,10 +317,18 @@ DB_HOST=localhost
 DB_PORT=5432
 
 TESSERACT_PATH=C:\Program Files\Tesseract-OCR\tesseract.exe
+
+# Le proxy HTTPS local termine le TLS : sans cette variable, Django ne verrait
+# que du HTTP et les URLs absolues seraient incorrectes.
+TRUST_PROXY=True
 ```
 
 > - Remplace `ton_mot_de_passe_postgres` par le mot de passe choisi à l'étape 2.
 > - Si Tesseract est installé ailleurs, adapte le chemin `TESSERACT_PATH`.
+> - **Ce fichier ne doit jamais être commité** : il est couvert par `.gitignore`.
+> - Pour un déploiement, partir de `backend/.env.production.example`, qui liste
+>   les variables supplémentaires exigées en production (`REDIS_URL`,
+>   `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, buckets public et privé séparés).
 
 ### 5.6 Appliquer les migrations
 

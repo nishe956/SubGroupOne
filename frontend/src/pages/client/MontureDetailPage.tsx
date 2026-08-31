@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Camera, ShoppingCart, ArrowLeft, Store, Package, CreditCard, Smartphone, Check, MapPin, Navigation, PenLine, Glasses, FileText, Sun } from 'lucide-react';
+import { Camera, ShoppingCart, ArrowLeft, Store, Package, Check, MapPin, Navigation, PenLine, Glasses, FileText, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import api, { mediaUrl, formatCFA } from '@/lib/api';
+import api, { mediaUrl, formatCFA, listeDepuis } from '@/lib/api';
 import { Monture, Ordonnance, CompagnieAssurance } from '@/types';
 import { interpreterOrdonnance, TYPES_VERRES, OPTIONS_VERRES, recommanderVerres, ReponsesConception } from '@/utils/ordonnanceUtils';
+import logoOrangeMoney from '@/assets/icons/orange-money.jpeg';
+import logoWave from '@/assets/icons/wave.png';
+import logoCarteBancaire from '@/assets/icons/cb.jpeg';
 import VerreSelector from '@/components/VerreSelector';
 import QuestionnaireConception from '@/components/QuestionnaireConception';
 import toast from 'react-hot-toast';
@@ -17,28 +20,25 @@ const METHODES_PAIEMENT = [
     id: 'orange_money' as MethodePaiement,
     label: 'Orange Money',
     description: 'Paiement mobile Orange',
-    icon: <Smartphone className="w-5 h-5" />,
+    logo: logoOrangeMoney,
     color: 'border-orange-400 bg-orange-50',
     selectedColor: 'border-orange-500 bg-orange-100 ring-2 ring-orange-400',
-    badge: 'bg-orange-500',
   },
   {
     id: 'wave' as MethodePaiement,
     label: 'Wave',
     description: 'Paiement mobile Wave',
-    icon: <Smartphone className="w-5 h-5" />,
+    logo: logoWave,
     color: 'border-blue-300 bg-blue-50',
     selectedColor: 'border-blue-500 bg-blue-100 ring-2 ring-blue-400',
-    badge: 'bg-blue-500',
   },
   {
     id: 'carte_bancaire' as MethodePaiement,
     label: 'Carte bancaire',
     description: 'Visa / Mastercard',
-    icon: <CreditCard className="w-5 h-5" />,
+    logo: logoCarteBancaire,
     color: 'border-gray-300 bg-gray-50',
     selectedColor: 'border-gray-600 bg-gray-100 ring-2 ring-gray-400',
-    badge: 'bg-gray-700',
   },
 ];
 
@@ -61,10 +61,6 @@ export default function MontureDetailPage() {
   const [gpsPrecision, setGpsPrecision] = useState<number | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [adresseCorrigee, setAdresseCorrigee] = useState(false);
-  const [carteNumero, setCarteNumero] = useState('');
-  const [carteExpiry, setCarteExpiry] = useState('');
-  const [carteCvv, setCarteCvv] = useState('');
-  const [carteTitulaire, setCarteTitulaire] = useState('');
   const [codePromo, setCodePromo] = useState('');
   const [rabaisFamille, setRabaisFamille] = useState(0);
   const [promoInfo, setPromoInfo] = useState<string | null>(null);
@@ -85,12 +81,12 @@ export default function MontureDetailPage() {
 
   const { data: ordonnances = [] } = useQuery<Ordonnance[]>({
     queryKey: ['ordonnances'],
-    queryFn: () => api.get('/ordonnances/').then(r => r.data.results || r.data),
+    queryFn: () => api.get('/ordonnances/').then(r => listeDepuis<Ordonnance>(r.data)),
   });
 
   const { data: assurances = [] } = useQuery<CompagnieAssurance[]>({
     queryKey: ['compagnies-assurance'],
-    queryFn: () => api.get('/assurance/compagnies/').then(r => r.data.results || r.data),
+    queryFn: () => api.get('/assurance/compagnies/').then(r => listeDepuis<CompagnieAssurance>(r.data)),
   });
 
   const simulMutation = useMutation({
@@ -183,7 +179,9 @@ export default function MontureDetailPage() {
         || ((monture as any)?.type === 'mixte' && avecVerres);
       const typeVerre = estVue ? TYPES_VERRES.find(t => t.id === typeVerreId) : null;
       const optsVerre = OPTIONS_VERRES.filter(o => optionsVerres.includes(o.id));
-      const prixVerres = (typeVerre ? typeVerre.prix : 0) + optsVerre.reduce((s, o) => s + o.prix, 0);
+      // Aucun montant n'est transmis : le prix total, le rabais famille et le
+      // prix des verres sont intégralement recalculés par le serveur à partir
+      // des identifiants ci-dessous (voir backend/commandes/tarifs.py).
       return api.post('/commandes/passer/', {
         monture: id,
         type_commande: estVue ? 'vue' : 'style',
@@ -197,10 +195,8 @@ export default function MontureDetailPage() {
         longitude: gpsCoords?.lng ?? undefined,
         compagnie_assurance_id: assuranceId || undefined,
         numero_police: numeroPolice || undefined,
-        rabais_famille: rabaisFamille || undefined,
         type_verre: typeVerre?.id || undefined,
         options_verres: optsVerre.map(o => o.id),
-        prix_verres: prixVerres || undefined,
       });
     },
     onSuccess: () => {
@@ -274,8 +270,12 @@ export default function MontureDetailPage() {
         <ArrowLeft className="w-4 h-4" /> Retour au catalogue
       </button>
 
-      <div className="grid lg:grid-cols-2 gap-10">
-        <div>
+      <div className="grid lg:grid-cols-2 gap-10 items-start">
+        {/* Colonne visuelle fixe pendant que le formulaire défile.
+            `self-start` est indispensable : par défaut un élément de grille
+            s'étire sur toute la hauteur de la ligne, ce qui rend `sticky` inopérant.
+            `top-20` place la colonne sous l'en-tête, lui-même en sticky (h-16). */}
+        <div className="lg:sticky lg:top-20 lg:self-start">
           <div className="bg-gray-100 rounded-2xl overflow-hidden aspect-square mb-4">
             {allImages.length > 0 ? (
               <img src={allImages[selectedImage]} alt={monture.nom} loading="lazy" className="w-full h-full object-cover" />
@@ -611,7 +611,9 @@ export default function MontureDetailPage() {
                         onClick={() => setMethodePaiement(m.id)}
                         className={`relative flex items-center gap-2 p-3 rounded-xl border-2 text-left transition-all ${methodePaiement === m.id ? m.selectedColor : m.color}`}
                       >
-                        <span className={`p-1.5 rounded-lg text-white ${m.badge}`}>{m.icon}</span>
+                        <span className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          <img src={m.logo} alt="" aria-hidden="true" className="max-w-full max-h-full object-contain" />
+                        </span>
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-gray-900 truncate">{m.label}</div>
                           <div className="text-xs text-gray-500 truncate">{m.description}</div>
@@ -637,50 +639,14 @@ export default function MontureDetailPage() {
                     />
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Nom du titulaire</label>
-                      <input value={carteTitulaire} onChange={e => setCarteTitulaire(e.target.value)} className="input-field" placeholder="Prénom NOM" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Numéro de carte</label>
-                      <input
-                        value={carteNumero}
-                        onChange={e => setCarteNumero(e.target.value.replace(/\D/g, '').slice(0, 16))}
-                        className="input-field font-mono tracking-widest"
-                        placeholder="0000 0000 0000 0000"
-                        maxLength={16}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Expiration</label>
-                        <input
-                          value={carteExpiry}
-                          onChange={e => {
-                            let val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                            if (val.length >= 3) val = val.slice(0, 2) + '/' + val.slice(2);
-                            setCarteExpiry(val);
-                          }}
-                          className="input-field font-mono"
-                          placeholder="MM/AA"
-                          maxLength={5}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">CVV</label>
-                        <input
-                          value={carteCvv}
-                          onChange={e => setCarteCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                          className="input-field font-mono"
-                          placeholder="***"
-                          type="password"
-                          maxLength={3}
-                        />
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-400 flex items-center gap-1">
-                      <span>🔒</span> Vos données sont sécurisées. L'intégration bancaire sera disponible prochainement.
+                  /* Aucun champ de carte n'est collecté ici : saisir un numéro de
+                     carte et un CVV dans un formulaire applicatif place le projet
+                     dans le périmètre PCI-DSS le plus contraignant. Le paiement
+                     par carte passera par les champs hébergés du prestataire. */
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <p className="text-sm text-amber-800">
+                      Le paiement par carte bancaire n'est pas encore disponible.
+                      Choisissez Orange Money ou Wave pour finaliser votre commande.
                     </p>
                   </div>
                 )}

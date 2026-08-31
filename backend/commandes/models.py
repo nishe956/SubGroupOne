@@ -10,6 +10,7 @@ class Commande(models.Model):
         ('validee', 'Validée'),
         ('rejetee', 'Rejetée'),
         ('en_preparation', 'En préparation'),
+        ('expediee', 'Expédiée'),
         ('livree', 'Livrée'),
     ]
     

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '@/types';
-import api from '@/lib/api';
+import api, { setAccessToken, rafraichirSession } from '@/lib/api';
 import { queryClient } from '@/main';
 
 interface AuthContextType {
@@ -18,50 +18,62 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  /**
+   * Au chargement, la session est reconstruite à partir du cookie httpOnly de
+   * rafraîchissement — plus rien n'est lu dans localStorage. C'est ce qui permet
+   * de garder le jeton d'accès hors de portée de JavaScript tout en conservant
+   * la session après un rechargement de page.
+   */
   useEffect(() => {
-    const access = localStorage.getItem('access_token');
-    if (access) {
-      api.get('/users/profil/')
-        .then(r => setUser(r.data))
-        .catch(() => {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user');
-        })
-        .finally(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
+    let annule = false;
+
+    (async () => {
+      // Nettoyage unique des jetons laissés par l'ancienne version : les laisser
+      // dans localStorage maintiendrait la surface d'attaque qu'on vient de fermer.
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+
+      const token = await rafraichirSession();
+      if (annule) return;
+
+      if (token) {
+        try {
+          const { data } = await api.get('/users/profil/');
+          if (!annule) setUser(data);
+        } catch {
+          if (!annule) setAccessToken(null);
+        }
+      }
+      if (!annule) setIsLoading(false);
+    })();
+
+    return () => { annule = true; };
   }, []);
 
   const login = async (username: string, password: string) => {
     const res = await api.post('/users/login/', { username, password });
-    const { access, refresh, user: u } = res.data;
-    localStorage.setItem('access_token', access);
-    localStorage.setItem('refresh_token', refresh);
-    setUser(u);
+    // La réponse ne contient plus le refresh token : il est posé dans un cookie
+    // httpOnly par le serveur.
+    setAccessToken(res.data.access);
+    setUser(res.data.user);
   };
 
   const loginWithGoogle = async (credential: string) => {
     const res = await api.post('/users/google-login/', { credential });
-    const { access, refresh, user: u } = res.data;
-    localStorage.setItem('access_token', access);
-    localStorage.setItem('refresh_token', refresh);
-    setUser(u);
+    setAccessToken(res.data.access);
+    setUser(res.data.user);
   };
 
   const logout = async () => {
     try {
-      const refresh = localStorage.getItem('refresh_token');
-      // Envoie le refresh token pour qu'il soit révoqué (blacklist) côté serveur.
-      await api.post('/users/logout/', refresh ? { refresh } : {});
+      // Le serveur lit le cookie pour blacklister le refresh token.
+      await api.post('/users/logout/', {});
     } catch {
       // continuer même si le serveur est indisponible
     }
     setUser(null);
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
+    setAccessToken(null);
     queryClient.clear();
   };
 

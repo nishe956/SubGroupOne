@@ -58,11 +58,29 @@ class DemandeRemboursement(models.Model):
         return f"Remboursement commande #{self.commande_id} — {self.statut}"
 
     def calculer_montants(self):
-        if self.compagnie:
-            taux = float(self.compagnie.taux_prise_charge) / 100
-            self.montant_rembourse = float(self.montant_total) * taux
-            self.montant_patient   = float(self.montant_total) - float(self.montant_rembourse)
-            # Appliquer le plafond
-            if self.compagnie.plafond_annuel:
-                self.montant_rembourse = min(float(self.montant_rembourse), float(self.compagnie.plafond_annuel))
-                self.montant_patient   = float(self.montant_total) - float(self.montant_rembourse)
+        """Répartit le montant entre l'assurance et le patient.
+
+        Calcul en Decimal : les `float` introduisaient des erreurs d'arrondi sur
+        des montants financiers stockés en DecimalField.
+        """
+        from decimal import Decimal, ROUND_HALF_UP
+
+        if not self.compagnie:
+            self.montant_rembourse = Decimal('0.00')
+            self.montant_patient = Decimal(self.montant_total)
+            return
+
+        total = Decimal(self.montant_total)
+        taux = Decimal(self.compagnie.taux_prise_charge) / Decimal('100')
+        rembourse = total * taux
+
+        if self.compagnie.plafond_annuel:
+            rembourse = min(rembourse, Decimal(self.compagnie.plafond_annuel))
+
+        # Le remboursement ne peut jamais dépasser le montant réellement payé.
+        rembourse = max(Decimal('0'), min(rembourse, total))
+
+        self.montant_rembourse = rembourse.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        self.montant_patient = (total - self.montant_rembourse).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )

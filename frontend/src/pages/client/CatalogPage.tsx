@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Search, Filter, Camera, ShoppingCart, Glasses, Sun, LayoutGrid } from 'lucide-react';
-import api, { mediaUrl, formatCFA } from '@/lib/api';
+import api, { mediaUrl, formatCFA, listeDepuis } from '@/lib/api';
 import { Monture } from '@/types';
 
 const TYPE_TABS = [
@@ -21,16 +21,17 @@ export default function CatalogPage() {
     queryKey: ['montures', filters],
     queryFn: () => {
       const { minPrix, maxPrix, ...rest } = filters;
-      const params: Record<string, string> = { ...rest };
+      // `page_size` est plafonné à 100 côté serveur (utils/pagination.py).
+      const params: Record<string, string> = { ...rest, page_size: '100' };
       if (minPrix) params.prix_min = minPrix;
       if (maxPrix) params.prix_max = maxPrix;
-      return api.get('/montures/', { params }).then(r => r.data);
+      return api.get('/montures/', { params }).then(r => listeDepuis<Monture>(r.data));
     },
   });
 
-  const montures: Monture[] = Array.isArray(data) ? data : (data?.results || data?.montures || []);
-  const total: number = montures.length || data?.count || 0;
-  const totalPages: number = data?.pages || Math.ceil(total / 12) || 1;
+  const montures: Monture[] = data ?? [];
+  const total: number = montures.length;
+  const totalPages: number = Math.max(1, Math.ceil(total / 12));
 
   const setFilter = (key: string, val: string) =>
     setFilters(f => ({ ...f, [key]: val, page: '1' }));
