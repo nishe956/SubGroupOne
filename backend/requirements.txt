@@ -19,5 +19,9 @@ requests==2.34.2
 openai==1.58.1
 gunicorn==23.0.0
 whitenoise==6.11.0
+# Client du backend de cache django.core.cache.backends.redis. Absent, Django
+# lève ModuleNotFoundError au premier accès au cache — c'est-à-dire à la
+# première requête, la limitation de débit DRF touchant le cache à chaque appel.
+redis==6.4.0
 django-storages==1.14.6
 boto3==1.40.55

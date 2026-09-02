@@ -7,6 +7,21 @@
 # Offre gratuite : 512 Mo de RAM, mise en veille après 15 minutes sans trafic.
 # Le premier appel après une veille prend 30 à 60 secondes — c'est attendu.
 services:
+  # ─── Cache partagé ──────────────────────────────────────────────────────
+  # Remplace un Redis externe : Render fabrique l'URL de connexion et
+  # l'injecte dans le service web, il n'y a aucun identifiant à recopier.
+  - type: keyvalue
+    name: lunette-cache
+    plan: free
+    region: frankfurt
+    # Liste vide = aucune adresse publique autorisée. Le cache n'est joignable
+    # que par le réseau interne de Render, donc uniquement par l'API.
+    ipAllowList: []
+    # `volatile_lru` n'évince que les clés porteuses d'un TTL : les compteurs de
+    # limitation de débit, qui se reconstituent seuls. Le drapeau de maintenance,
+    # écrit sans expiration, est ainsi à l'abri d'une éviction sous pression.
+    maxmemoryPolicy: volatile_lru
+
   - type: web
     name: lunette-api
     runtime: docker
@@ -91,8 +106,12 @@ services:
 
       # Cache partagé — obligatoire : sans lui l'application refuse de démarrer,
       # car les compteurs anti-bruteforce et le mode maintenance en dépendent.
+      # Valeur fournie par le service `lunette-cache` ci-dessus : rien à saisir.
       - key: REDIS_URL
-        sync: false
+        fromService:
+          type: keyvalue
+          name: lunette-cache
+          property: connectionString
 
       # Stockage des médias — Cloudflare R2. Deux buckets obligatoires : les
       # ordonnances sont des données de santé et ne vont jamais dans le public.

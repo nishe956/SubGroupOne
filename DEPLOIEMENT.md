@@ -13,8 +13,8 @@ coût d'hébergement. Compter environ une heure pour un premier déploiement.
 | Brique | Plateforme | Offre gratuite | Limite à connaître |
 |---|---|---|---|
 | API Django | **Render** (Docker) | 512 Mo RAM, 750 h/mois | Mise en veille après 15 min sans trafic ; réveil en 30–60 s |
-| Base PostgreSQL | **Neon** | 0,5 Go | Suspension auto après 5 min ; première requête ralentie |
-| Cache partagé | **Redis Cloud** | 30 Mo, 30 connexions | Obligatoire : l'API refuse de démarrer sans lui |
+| Base PostgreSQL | **Supabase** | 0,5 Go | Projet mis en pause après ~7 j sans activité (réveil manuel) |
+| Cache partagé | **Render Key Value** | 25 Mo | Déclaré dans `render.yaml`, aucune configuration manuelle |
 | Médias | **Cloudflare R2** | 10 Go, egress gratuit | Deux buckets requis (public + privé) |
 | SPA React | **Cloudflare Pages** | illimité, usage commercial autorisé | — |
 
@@ -30,28 +30,95 @@ Les deux chemins sont supportés : `frontend/public/_headers` et
 
 ---
 
-## 2. Base de données — Neon
+## 2. Base de données — Supabase
 
-1. [neon.tech](https://neon.tech) → **New Project**, région *Europe (Frankfurt)*.
-2. Copier les identifiants de la chaîne de connexion :
-   `postgresql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>/<DB_NAME>?sslmode=require`
-3. Utiliser l'endpoint **pooled** (`-pooler` dans le nom d'hôte) : l'offre gratuite
-   plafonne les connexions directes, et Django en garde une ouverte 60 s
-   (`DB_CONN_MAX_AGE`).
+Le code n'utilise aucune extension PostgreSQL (uniquement des `JSONField` natifs,
+aucun curseur serveur) : n'importe quel PostgreSQL standard convient.
+
+1. [supabase.com](https://supabase.com) → connexion via GitHub → **New project**.
+2. Renseigner :
+   - *Name* : `optilunette`
+   - *Database Password* : cliquer sur **Generate a password** et **le copier
+     immédiatement** — il n'est plus jamais affiché (réinitialisable ensuite dans
+     *Settings → Database*) ;
+   - *Region* : **Central EU (Frankfurt)**, la même que le service Render ;
+   - *Plan* : Free.
+3. Attendre 2 à 3 minutes le provisionnement.
+4. Bouton **Connect** (en haut) → onglet **Session pooler** → copier la chaîne :
+
+   ```
+   postgresql://postgres.<ref>:<mot_de_passe>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres
+   ```
+
+> **Session pooler obligatoire, pour deux raisons.**
+> La connexion directe (`db.<ref>.supabase.co`) n'écoute **qu'en IPv6**, or
+> l'offre gratuite de Render ne sort pas en IPv6 : la connexion expirerait sans
+> message clair. Et le *transaction* pooler (port **6543**) casse à la fois les
+> connexions persistantes de Django (`CONN_MAX_AGE=60`) et les migrations.
+> Le *session* pooler (port **5432**) est en IPv4 et n'a aucun de ces défauts.
+
+Correspondance avec les variables attendues par Django :
+
+| Variable | Valeur |
+|---|---|
+| `DB_USER` | `postgres.<ref>` — garder le préfixe `postgres.` |
+| `DB_PASSWORD` | le mot de passe de l'étape 2 |
+| `DB_HOST` | `aws-1-eu-central-1.pooler.supabase.com` (copier tel quel) |
+| `DB_PORT` | `5432` — surtout pas 6543 |
+| `DB_NAME` | `postgres` |
+| `DB_SSLMODE` | `require` |
+
+Le mot de passe est passé à Django dans sa propre variable, jamais dans une URL :
+inutile d'encoder ses caractères spéciaux.
 
 ---
 
-## 3. Cache — Redis Cloud
+## 3. Cache — Render Key Value
 
-1. [redis.com/try-free](https://redis.com/try-free) → base **Free 30 Mo**, même région.
-2. Récupérer `REDIS_URL` au format `redis://default:<mot_de_passe>@<hôte>:<port>`.
+**Rien à faire à cette étape.** Le cache est déclaré dans `render.yaml` comme un
+service à part entière, et Render injecte lui-même l'URL de connexion dans
+l'API :
 
-> **Upstash** convient aussi, mais son offre gratuite plafonne à 10 000 commandes
-> par jour. La limitation de débit DRF consomme ~4 commandes par requête HTTP,
-> soit un plafond effectif d'environ 2 500 requêtes quotidiennes. Redis Cloud
-> n'impose pas de compteur journalier : c'est le choix le plus sûr ici.
+```yaml
+  - type: keyvalue
+    name: lunette-cache
+    plan: free
+    region: frankfurt
+    ipAllowList: []
+    maxmemoryPolicy: volatile_lru
+```
 
----
+```yaml
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: lunette-cache
+          property: connectionString
+```
+
+Un Redis externe (Redis Cloud, Upstash) fonctionne aussi, mais impose de
+recopier un hôte, un port et un mot de passe, expose un point d'accès public, et
+place souvent la base sur un autre continent que l'API — la limitation de débit
+DRF effectuant environ quatre opérations par requête HTTP, chaque aller-retour
+transatlantique se paie quatre fois. Le service interne de Render supprime ces
+trois problèmes d'un coup.
+
+> **`ipAllowList: []`** — liste vide signifie *aucune adresse publique
+> autorisée* : le cache n'est joignable que par le réseau interne de Render.
+>
+> **`volatile_lru`** — seules les clés porteuses d'un TTL sont évincées, donc les
+> compteurs de limitation de débit, qui se reconstituent seuls. Le drapeau de
+> maintenance est écrit sans expiration (`timeout=None`) : avec `allkeys_lru`, il
+> aurait pu être évincé sous pression mémoire et le site serait sorti tout seul
+> du mode maintenance.
+
+À quoi sert ce cache, concrètement : l'anti-bruteforce de la connexion API
+(5 tentatives / 10 min), celui de l'admin Django (5 / 15 min), tous les quotas
+`DEFAULT_THROTTLE_RATES`, et l'état du mode maintenance.
+
+⚠️ Le paquet Python `redis` doit figurer dans `requirements.txt` — sans lui,
+Django lève `ModuleNotFoundError` non pas au démarrage mais **à la première
+requête**, la limitation de débit touchant le cache à chaque appel.
 
 ## 4. Médias — Cloudflare R2
 
@@ -84,8 +151,7 @@ que les secrets.
    CORS_ALLOWED_ORIGINS     https://optilunette.pages.dev
    CSRF_TRUSTED_ORIGINS     https://optilunette.pages.dev
    FRONTEND_URL             https://optilunette.pages.dev
-   DB_NAME / DB_USER / DB_PASSWORD / DB_HOST      (Neon, étape 2)
-   REDIS_URL                                      (Redis Cloud, étape 3)
+   DB_NAME / DB_USER / DB_PASSWORD / DB_HOST      (Supabase, étape 2)
    AWS_*                                          (R2, étape 4)
    ADMIN_URL                gestion-interne-8f3a/
    ```
@@ -100,7 +166,7 @@ que les secrets.
 3. Premier build : 10 à 15 minutes (MediaPipe et OpenCV pèsent lourd).
 4. **Migrations** — depuis votre machine, pas depuis Render.
 
-   L'onglet *Shell* de Render est réservé aux offres payantes. Or Neon est
+   L'onglet *Shell* de Render est réservé aux offres payantes. Or la base est
    joignable depuis n'importe où : on applique donc les migrations en local, en
    pointant Django sur la base de production. C'est aussi plus sûr — vous voyez
    le plan de migration avant qu'il ne s'exécute.
@@ -108,15 +174,33 @@ que les secrets.
    ```bash
    cd backend && source .venv/bin/activate
 
-   # Endpoint DIRECT de Neon (sans « -pooler ») : le pooler de Neon est en mode
-   # transaction, incompatible avec les verrous que prend une migration.
+   # Mêmes identifiants que ceux donnés à Render : le session pooler de
+   # Supabase convient aussi bien à l'application qu'aux migrations.
    export DEBUG=True SECRET_KEY=valeur-locale-sans-importance
-   export DB_NAME=... DB_USER=... DB_PASSWORD=... DB_PORT=5432 DB_SSLMODE=require
-   export DB_HOST=ep-xxxx.eu-central-1.aws.neon.tech
+   export DB_NAME=postgres DB_PORT=5432 DB_SSLMODE=require
+   export DB_USER='postgres.<ref>' DB_PASSWORD='<mot_de_passe>'
+   export DB_HOST=aws-1-eu-central-1.pooler.supabase.com
 
    python manage.py migrate --plan      # à lire avant d'appliquer
    python manage.py migrate --noinput
    python manage.py createsuperuser
+   ```
+
+   **`createsuperuser` ne suffit pas.** Le modèle `User` porte un champ `role`
+   qui vaut `client` par défaut, et le projet ne redéfinit pas
+   `create_superuser` : le compte sort donc avec `is_superuser=True` mais
+   `role='client'`. Il ouvrirait l'admin Django sans pouvoir utiliser
+   l'administration React, dont toutes les routes testent `user.role == 'admin'`
+   (`users/permissions.py`). Il faut promouvoir le compte :
+
+   ```bash
+   python manage.py shell -c "
+   from django.contrib.auth import get_user_model
+   U = get_user_model()
+   u = U.objects.get(username='VOTRE_IDENTIFIANT')
+   u.role = 'admin'; u.save(update_fields=['role'])
+   print('role =', u.role)
+   "
    ```
 
    `RUN_MIGRATIONS` reste à `0` sur Render : jouées au démarrage du conteneur,
@@ -227,7 +311,7 @@ connecter en admin sur `https://.../gestion-interne-8f3a/`.
 | Première visite très lente (30–60 s) | Instance Render en veille | Un ping régulier la garde éveillée ; sinon offre payante |
 | Essai virtuel lent ou en échec | MediaPipe sur 0,1 vCPU et 512 Mo | 1 seul worker (déjà configuré) ; éviter les essais simultanés |
 | `502` sporadique sous charge | OOM du conteneur | Ne pas augmenter `GUNICORN_WORKERS` |
-| Base indisponible quelques secondes | Reprise après suspension Neon | Comportement normal de l'offre |
+| Base injoignable après une longue inactivité | Projet Supabase mis en pause (~7 j) | Le relancer depuis le dashboard Supabase |
 | Envoi de SMS inopérant | Identifiants Orange absents | Renseigner les variables `ORANGE_*` |
 
 **Ces offres conviennent à une démonstration, une recette ou un pilote.** Pour
