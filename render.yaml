@@ -20,7 +20,7 @@ services:
     # `volatile_lru` n'évince que les clés porteuses d'un TTL : les compteurs de
     # limitation de débit, qui se reconstituent seuls. Le drapeau de maintenance,
     # écrit sans expiration, est ainsi à l'abri d'une éviction sous pression.
-    maxmemoryPolicy: volatile_lru
+    maxmemoryPolicy: volatile-lru
 
   - type: web
     name: lunette-api
